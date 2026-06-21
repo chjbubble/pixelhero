@@ -1,20 +1,76 @@
 import { HEIGHT, WIDTH, GROUND_Y } from "./constants.js";
 import { getSwordHitbox } from "./entities.js";
 
+export function getPlayerPose(player) {
+  const flash = player.invuln > 0;
+  if (player.attackTimer > 0) {
+    return { state: "attack", flash };
+  }
+  if (!player.grounded && player.jumpsUsed >= 2) {
+    return { state: "double-jump", flash };
+  }
+  if (!player.grounded) {
+    return { state: "jump", flash };
+  }
+  if (Math.abs(player.vx) > 0) {
+    return { state: "run", flash };
+  }
+  return { state: "idle", flash };
+}
+
+export function getEnemyPose(enemy) {
+  return {
+    facing: enemy.vx < 0 ? -1 : 1,
+    flash: enemy.invuln > 0
+  };
+}
+
+export function getBossPose(boss) {
+  return {
+    state: boss.phase,
+    facing: boss.chargeDirection < 0 ? -1 : 1,
+    warning: boss.phase === "windup"
+  };
+}
+
 function drawPlayer(ctx, player) {
   const { x, y, facing } = player;
   const flip = facing === -1;
+  const pose = getPlayerPose(player);
+  const runStep = Math.floor(player.x / 12) % 2;
+  const bodyY = pose.state === "idle" ? y + 8 : y + 6;
+  const armSwing = pose.state === "run" ? (runStep === 0 ? -4 : 4) : 0;
+  const legSwing = pose.state === "run" ? (runStep === 0 ? 4 : -4) : 0;
+  const bodyColor = pose.flash ? "#d7ecff" : "#1f5fbf";
+  const trimColor = pose.state === "double-jump" ? "#f7d94a" : "#53a7ff";
 
-  ctx.fillStyle = "#1f5fbf";
-  ctx.fillRect(x + 8, y + 8, 16, 24);
+  ctx.fillStyle = "#18324f";
+  ctx.fillRect(x + 7, bodyY + 5, 18, 24);
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(x + 8, bodyY, 16, 28);
+  ctx.fillStyle = trimColor;
+  ctx.fillRect(x + (flip ? 6 : 20), bodyY + 6, 8, 6);
+
   ctx.fillStyle = "#ffd4a8";
   ctx.fillRect(x + 10, y, 12, 12);
+  ctx.fillStyle = "#3d2817";
+  ctx.fillRect(x + 8, y - 2, 16, 6);
+  ctx.fillRect(x + (flip ? 20 : 6), y + 2, 6, 6);
   ctx.fillStyle = "#263238";
   ctx.fillRect(flip ? x + 10 : x + 18, y + 4, 4, 4);
 
   ctx.fillStyle = "#3d2817";
-  ctx.fillRect(x + 6, y + 40, 8, 16);
-  ctx.fillRect(x + 18, y + 40, 8, 16);
+  ctx.fillRect(x + 6, y + 40 + Math.max(0, legSwing), 8, 16 - Math.max(0, legSwing));
+  ctx.fillRect(x + 18, y + 40 + Math.max(0, -legSwing), 8, 16 - Math.max(0, -legSwing));
+
+  ctx.fillStyle = "#ffd4a8";
+  ctx.fillRect(x + (flip ? 2 : 24), bodyY + 12 + armSwing, 7, 14);
+
+  if (pose.state === "jump" || pose.state === "double-jump") {
+    ctx.fillStyle = pose.state === "double-jump" ? "#f7d94a" : "#ffffff";
+    ctx.fillRect(x + 4, y + 54, 6, 4);
+    ctx.fillRect(x + 22, y + 54, 6, 4);
+  }
 
   const sword = getSwordHitbox(player);
   if (sword) {
@@ -27,36 +83,57 @@ function drawPlayer(ctx, player) {
 
 function drawSlime(ctx, enemy) {
   const { x, y, w, h } = enemy;
-  const bodyColor = enemy.invuln > 0 ? "#dfffd6" : "#7ed957";
+  const pose = getEnemyPose(enemy);
+  const bounce = Math.floor(enemy.x / 18) % 2 === 0 ? 0 : 3;
+  const eyeOffset = pose.facing === -1 ? -2 : 2;
+  const bodyColor = pose.flash ? "#dfffd6" : "#7ed957";
 
   ctx.fillStyle = bodyColor;
-  ctx.fillRect(x + 4, y + 8, w - 8, h - 12);
-  ctx.fillRect(x, y + 16, w, h - 16);
+  ctx.fillRect(x + 4, y + 6 + bounce, w - 8, h - 10 - bounce);
+  ctx.fillRect(x, y + 16 + bounce, w, h - 16 - bounce);
+  ctx.fillStyle = "#4ba53f";
+  ctx.fillRect(x + 4, y + h - 7, w - 8, 5);
 
   ctx.fillStyle = "#263238";
-  ctx.fillRect(x + 8, y + 12, 6, 6);
-  ctx.fillRect(x + 20, y + 12, 6, 6);
+  ctx.fillRect(x + 8 + eyeOffset, y + 12 + bounce, 6, 6);
+  ctx.fillRect(x + 20 + eyeOffset, y + 12 + bounce, 6, 6);
+  ctx.fillStyle = "#eaffd8";
+  ctx.fillRect(x + 7, y + 7 + bounce, 8, 3);
 }
 
 function drawBoss(ctx, boss) {
   const { x, y, w, h } = boss;
-  const bodyColor = boss.phase === "windup" ? "#d65f5f" : "#8d3bb8";
+  const pose = getBossPose(boss);
+  const bodyColor = pose.state === "windup" ? "#d65f5f" : "#8d3bb8";
+  const chargeStretch = pose.state === "charge" ? 10 : 0;
+  const crouch = pose.state === "windup" ? 8 : 0;
+  const drawX = pose.facing === -1 ? x - chargeStretch : x;
+  const drawW = w + chargeStretch;
+  const drawY = y + crouch;
+  const drawH = h - crouch;
 
   ctx.fillStyle = bodyColor;
-  ctx.fillRect(x + 8, y + 24, w - 16, h - 32);
-  ctx.fillRect(x + 16, y + 8, w - 32, 24);
+  ctx.fillRect(drawX + 6, drawY + 20, drawW - 12, drawH - 24);
+  ctx.fillRect(drawX + 12, drawY + 8, drawW - 24, 24);
 
   ctx.fillStyle = "#ffd4a8";
-  ctx.fillRect(x + 24, y + 16, 12, 12);
-  ctx.fillRect(x + 42, y + 16, 12, 12);
+  ctx.fillRect(drawX + 16, drawY + 16, 10, 10);
+  ctx.fillRect(drawX + drawW - 26, drawY + 16, 10, 10);
 
   ctx.fillStyle = "#263238";
-  ctx.fillRect(x + 28, y + 20, 4, 4);
-  ctx.fillRect(x + 46, y + 20, 4, 4);
+  ctx.fillRect(drawX + 19 + pose.facing * 2, drawY + 19, 4, 4);
+  ctx.fillRect(drawX + drawW - 23 + pose.facing * 2, drawY + 19, 4, 4);
 
   ctx.fillStyle = bodyColor;
-  ctx.fillRect(x + 4, y, 12, 16);
-  ctx.fillRect(x + w - 16, y, 12, 16);
+  ctx.fillRect(drawX + 2, drawY, 10, 16);
+  ctx.fillRect(drawX + drawW - 12, drawY, 10, 16);
+
+  ctx.fillStyle = "#4c1f67";
+  ctx.fillRect(drawX + 10, drawY + drawH - 8, drawW - 20, 8);
+  if (pose.state === "charge") {
+    ctx.fillStyle = "rgb(247 217 74 / 0.55)";
+    ctx.fillRect(pose.facing === -1 ? drawX + drawW : drawX - 26, drawY + 26, 26, 8);
+  }
 }
 
 function drawBossWarning(ctx, boss) {
