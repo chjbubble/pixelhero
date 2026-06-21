@@ -25,6 +25,63 @@ test("grounded player jumps when jump action is pressed", () => {
   assert.equal(game.player.vy < 0, true);
 });
 
+test("airborne player can jump one more time", () => {
+  const game = createGame();
+  game.player.grounded = true;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+
+  game.player.grounded = false;
+  game.player.vy = 120;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+
+  assert.equal(game.player.vy < 0, true);
+  assert.equal(game.player.jumpsUsed, 2);
+});
+
+test("player cannot jump a third time before landing", () => {
+  const game = createGame();
+  game.player.grounded = true;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  game.player.grounded = false;
+  game.player.vy = 120;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+
+  game.player.vy = 120;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+
+  assert.equal(game.player.vy > 0, true);
+  assert.equal(game.player.jumpsUsed, 2);
+});
+
+test("landing resets double jump count", () => {
+  const game = createGame();
+  game.player.y = 398;
+  game.player.vy = 120;
+  game.player.grounded = false;
+  game.player.jumpsUsed = 2;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+
+  assert.equal(game.player.grounded, true);
+  assert.equal(game.player.jumpsUsed, 0);
+});
+
+test("holding jump does not automatically consume the double jump", () => {
+  const game = createGame();
+  game.player.grounded = true;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+
+  game.player.grounded = false;
+  game.player.vy = 120;
+  updateGame(game, { left: false, right: false, jump: true, attack: false, restart: false }, 1 / 60);
+
+  assert.equal(game.player.vy > 0, true);
+  assert.equal(game.player.jumpsUsed, 1);
+});
+
 test("player attack damages an enemy in front of the player", () => {
   const game = createGame();
   const enemy = game.enemies[0];

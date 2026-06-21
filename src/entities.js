@@ -29,7 +29,10 @@ export function createGame() {
       hp: 5,
       invuln: 0,
       attackTimer: 0,
-      attackCooldown: 0
+      attackCooldown: 0,
+      jumpsUsed: 0,
+      maxJumps: 2,
+      jumpWasPressed: false
     },
     enemies: level.screens.flatMap((screen, screenIndex) =>
       screen.enemies.map((enemy) => ({
@@ -113,9 +116,13 @@ export function updateGame(game, actions, dt) {
     player.facing = 1;
   }
 
-  if (actions.jump && player.grounded) {
+  const jumpPressed = actions.jump && !player.jumpWasPressed;
+  player.jumpWasPressed = actions.jump;
+
+  if (jumpPressed && (player.grounded || player.jumpsUsed < player.maxJumps)) {
     player.vy = -JUMP_SPEED;
     player.grounded = false;
+    player.jumpsUsed += 1;
   }
 
   const previousBottom = player.y + player.h;
@@ -149,6 +156,7 @@ export function updateGame(game, actions, dt) {
       player.y = platform.y - player.h;
       player.vy = 0;
       player.grounded = true;
+      player.jumpsUsed = 0;
     }
   }
 
@@ -156,6 +164,7 @@ export function updateGame(game, actions, dt) {
     player.y = GROUND_Y - player.h;
     player.vy = 0;
     player.grounded = true;
+    player.jumpsUsed = 0;
   }
 
   player.attackTimer = Math.max(0, player.attackTimer - dt);
