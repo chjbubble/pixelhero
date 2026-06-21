@@ -243,6 +243,20 @@ test("restart respawns at the active checkpoint with full health", () => {
   assert.equal(restarted.player.hp, 5);
 });
 
+test("restart after victory starts a new game at the original spawn", () => {
+  const game = createGame();
+  game.checkpoint = { screen: 3, x: 120, y: 400 };
+  game.currentScreen = 4;
+  game.state = "won";
+
+  const restarted = restartGame(game);
+
+  assert.equal(restarted.currentScreen, 0);
+  assert.equal(restarted.player.x, restarted.level.spawn.x);
+  assert.equal(restarted.player.y, restarted.level.spawn.y);
+  assert.equal(restarted.checkpoint, null);
+});
+
 test("touching spikes damages the player once during invulnerability", () => {
   const game = createGame();
   game.currentScreen = 2;

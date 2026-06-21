@@ -74,7 +74,7 @@ function getActiveScreen(game) {
 export function restartGame(previousGame) {
   const game = createGame();
   const checkpoint = previousGame.checkpoint;
-  if (checkpoint) {
+  if (previousGame.state === GameState.LOST && checkpoint) {
     game.checkpoint = { ...checkpoint };
     game.currentScreen = checkpoint.screen;
     game.player.x = checkpoint.x;
