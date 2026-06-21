@@ -29,6 +29,6 @@ export function createLevel() {
     screens,
     platforms: screens[0].platforms,
     enemies: screens[0].enemies,
-    boss: { x: 806, y: GROUND_Y - 72, screen: 1 }
+    boss: { x: 806, y: GROUND_Y - 58, screen: 1 }
   };
 }

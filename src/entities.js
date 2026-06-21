@@ -49,8 +49,8 @@ export function createGame() {
     boss: {
       x: level.boss.x,
       y: level.boss.y,
-      w: 78,
-      h: 72,
+      w: 55,
+      h: 58,
       hp: 8,
       invuln: 0,
       screen: level.boss.screen,

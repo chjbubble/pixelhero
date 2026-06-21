@@ -110,7 +110,8 @@ test("player switches from boss screen back to first screen at the left edge", (
 test("boss belongs to the second screen and is short enough to jump over", () => {
   const game = createGame();
   assert.equal(game.boss.screen, 1);
-  assert.equal(game.boss.h, 72);
+  assert.equal(game.boss.w, 55);
+  assert.equal(game.boss.h, 58);
   assert.equal(game.boss.y + game.boss.h, 456);
 });
 
