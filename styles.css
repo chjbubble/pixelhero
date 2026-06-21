@@ -1,0 +1,41 @@
+:root {
+  color-scheme: dark;
+  font-family: "Microsoft YaHei", "Segoe UI", sans-serif;
+  background: #17202a;
+  color: #f7f2df;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  display: grid;
+  place-items: center;
+}
+
+.game-shell {
+  width: min(96vw, 1040px);
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+}
+
+canvas {
+  width: 100%;
+  max-width: 960px;
+  aspect-ratio: 16 / 9;
+  image-rendering: pixelated;
+  background: #8fd2ff;
+  border: 4px solid #f7f2df;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 35%);
+}
+
+.hint {
+  margin: 0;
+  line-height: 1.6;
+  text-align: center;
+  color: #d7d0b8;
+}

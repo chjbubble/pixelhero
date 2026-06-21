@@ -1,0 +1,11 @@
+{
+  "name": "pixel-platformer",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "npx http-server . -p 5173 -c-1",
+    "test": "node --test"
+  },
+  "devDependencies": {}
+}
