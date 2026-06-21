@@ -10,6 +10,7 @@ const SCREEN_RIGHT_ENTRY_X = WIDTH - 56;
 const BOSS_IDLE_SECONDS = 3;
 const BOSS_WINDUP_SECONDS = 0.9;
 const BOSS_CHARGE_SECONDS = 0.55;
+const MAX_PLAYER_HP = 5;
 
 export function createGame() {
   const level = createLevel();
@@ -17,6 +18,7 @@ export function createGame() {
     state: GameState.PLAYING,
     level,
     currentScreen: 0,
+    checkpoint: null,
     player: {
       x: level.spawn.x,
       y: level.spawn.y,
@@ -26,7 +28,7 @@ export function createGame() {
       vy: 0,
       facing: 1,
       grounded: false,
-      hp: 5,
+      hp: MAX_PLAYER_HP,
       invuln: 0,
       attackTimer: 0,
       attackCooldown: 0,
@@ -69,6 +71,18 @@ function getActiveScreen(game) {
   return game.level.screens[game.currentScreen];
 }
 
+export function restartGame(previousGame) {
+  const game = createGame();
+  const checkpoint = previousGame.checkpoint;
+  if (checkpoint) {
+    game.checkpoint = { ...checkpoint };
+    game.currentScreen = checkpoint.screen;
+    game.player.x = checkpoint.x;
+    game.player.y = checkpoint.y;
+  }
+  return game;
+}
+
 export function getSwordHitbox(player) {
   if (player.attackTimer <= 0) {
     return null;
@@ -96,6 +110,27 @@ function damagePlayer(game, sourceX) {
   if (player.hp <= 0) {
     game.state = GameState.LOST;
   }
+}
+
+function checkScreenTransitions(game) {
+  const player = game.player;
+  const lastScreen = game.level.screens.length - 1;
+
+  if (player.x + player.w >= WIDTH && game.currentScreen < lastScreen) {
+    game.currentScreen += 1;
+    player.x = SCREEN_LEFT_ENTRY_X;
+    player.y = Math.min(player.y, GROUND_Y - player.h);
+    return;
+  }
+
+  if (player.x <= 0 && game.currentScreen > 0) {
+    game.currentScreen -= 1;
+    player.x = SCREEN_RIGHT_ENTRY_X;
+    player.y = Math.min(player.y, GROUND_Y - player.h);
+    return;
+  }
+
+  player.x = Math.max(0, Math.min(WIDTH - player.w, player.x));
 }
 
 export function updateGame(game, actions, dt) {
@@ -127,24 +162,14 @@ export function updateGame(game, actions, dt) {
 
   const previousBottom = player.y + player.h;
   player.x += player.vx * dt;
-
-  if (game.currentScreen === 0 && player.x + player.w >= WIDTH) {
-    game.currentScreen = 1;
-    player.x = SCREEN_LEFT_ENTRY_X;
-    player.y = Math.min(player.y, GROUND_Y - player.h);
-  } else if (game.currentScreen === 1 && player.x <= 0) {
-    game.currentScreen = 0;
-    player.x = SCREEN_RIGHT_ENTRY_X;
-    player.y = Math.min(player.y, GROUND_Y - player.h);
-  } else {
-    player.x = Math.max(0, Math.min(WIDTH - player.w, player.x));
-  }
+  checkScreenTransitions(game);
 
   player.vy += GRAVITY * dt;
   player.y += player.vy * dt;
   player.grounded = false;
+  const activeScreen = getActiveScreen(game);
 
-  for (const platform of getActiveScreen(game).platforms) {
+  for (const platform of activeScreen.platforms) {
     const landed =
       previousBottom <= platform.y &&
       player.y + player.h >= platform.y &&
@@ -165,6 +190,22 @@ export function updateGame(game, actions, dt) {
     player.vy = 0;
     player.grounded = true;
     player.jumpsUsed = 0;
+  }
+
+  for (const checkpoint of activeScreen.checkpoints) {
+    if (rectsOverlap(player, checkpoint)) {
+      game.checkpoint = {
+        screen: game.currentScreen,
+        x: checkpoint.spawnX,
+        y: checkpoint.spawnY
+      };
+    }
+  }
+
+  for (const spike of activeScreen.spikes) {
+    if (rectsOverlap(player, spike)) {
+      damagePlayer(game, spike.x + spike.w / 2);
+    }
   }
 
   player.attackTimer = Math.max(0, player.attackTimer - dt);

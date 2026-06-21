@@ -1,5 +1,5 @@
 import { HEIGHT, WIDTH } from "./constants.js";
-import { createGame, updateGame } from "./entities.js";
+import { createGame, restartGame, updateGame } from "./entities.js";
 import { installKeyboardListeners, readActions } from "./input.js";
 import { renderGame } from "./render.js";
 
@@ -19,7 +19,7 @@ function frame(now) {
   const actions = readActions();
 
   if (actions.restart && game.state !== "playing") {
-    game = createGame();
+    game = restartGame(game);
   }
 
   updateGame(game, actions, dt);

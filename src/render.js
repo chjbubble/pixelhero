@@ -153,6 +153,35 @@ function drawBossWarning(ctx, boss) {
   }
 }
 
+function drawCheckpoint(ctx, checkpoint, active) {
+  const poleColor = active ? "#f7d94a" : "#d7d0b8";
+  ctx.fillStyle = "#5d3f24";
+  ctx.fillRect(checkpoint.x + 8, checkpoint.y + 4, 6, checkpoint.h - 4);
+  ctx.fillStyle = poleColor;
+  ctx.fillRect(checkpoint.x + 14, checkpoint.y + 4, 18, 12);
+  ctx.fillRect(checkpoint.x + 14, checkpoint.y + 16, 12, 8);
+  ctx.fillStyle = "#263238";
+  ctx.fillRect(checkpoint.x + 4, checkpoint.y + checkpoint.h - 6, 24, 6);
+}
+
+function drawSpikes(ctx, spike) {
+  ctx.fillStyle = "#616b75";
+  ctx.fillRect(spike.x, spike.y + spike.h - 5, spike.w, 5);
+  ctx.fillStyle = "#d65f5f";
+  for (let x = spike.x; x < spike.x + spike.w; x += 16) {
+    ctx.beginPath();
+    ctx.moveTo(x, spike.y + spike.h);
+    ctx.lineTo(x + 8, spike.y);
+    ctx.lineTo(x + 16, spike.y + spike.h);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.fillStyle = "#f7d94a";
+  for (let x = spike.x + 6; x < spike.x + spike.w; x += 32) {
+    ctx.fillRect(x, spike.y + 8, 4, 6);
+  }
+}
+
 export function renderGame(ctx, game) {
   const screen = game.level.screens[game.currentScreen];
 
@@ -166,6 +195,18 @@ export function renderGame(ctx, game) {
     ctx.fillStyle = "#3f8f45";
     ctx.fillRect(platform.x, platform.y, platform.w, 8);
     ctx.fillStyle = "#5d3f24";
+  }
+
+  for (const spike of screen.spikes) {
+    drawSpikes(ctx, spike);
+  }
+
+  for (const checkpoint of screen.checkpoints) {
+    const active =
+      game.checkpoint?.screen === game.currentScreen &&
+      game.checkpoint?.x === checkpoint.spawnX &&
+      game.checkpoint?.y === checkpoint.spawnY;
+    drawCheckpoint(ctx, checkpoint, active);
   }
 
   drawPlayer(ctx, game.player);
@@ -191,7 +232,7 @@ export function renderGame(ctx, game) {
   ctx.fillStyle = "#17202a";
   ctx.font = "20px monospace";
   ctx.fillText(`HP: ${game.player.hp}`, 24, 32);
-  ctx.fillText(`Screen: ${game.currentScreen + 1}/2`, 408, 32);
+  ctx.fillText(`Screen: ${game.currentScreen + 1}/${game.level.screens.length}`, 408, 32);
   if (game.currentScreen === game.boss.screen) {
     ctx.fillText(`Boss HP: ${game.boss.hp}`, 760, 32);
   }

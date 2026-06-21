@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGame, updateGame } from "../src/entities.js";
+import { createGame, restartGame, updateGame } from "../src/entities.js";
 
 test("player falls to the ground and becomes grounded", () => {
   const game = createGame();
@@ -85,6 +85,7 @@ test("holding jump does not automatically consume the double jump", () => {
 test("player attack damages an enemy in front of the player", () => {
   const game = createGame();
   const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
   game.player.x = enemy.x - 40;
   game.player.y = enemy.y - 20;
   game.player.facing = 1;
@@ -95,6 +96,7 @@ test("player attack damages an enemy in front of the player", () => {
 test("enemy is marked dead after two sword hits", () => {
   const game = createGame();
   const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
   game.player.x = enemy.x - 40;
   game.player.y = enemy.y - 20;
   game.player.facing = 1;
@@ -108,6 +110,7 @@ test("enemy is marked dead after two sword hits", () => {
 test("touching an enemy damages the player once", () => {
   const game = createGame();
   const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
   game.player.x = enemy.x;
   game.player.y = enemy.y;
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
@@ -120,6 +123,7 @@ test("player reaches lost state when hp reaches zero", () => {
   const game = createGame();
   game.player.hp = 1;
   const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
   game.player.x = enemy.x;
   game.player.y = enemy.y;
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
@@ -128,7 +132,7 @@ test("player reaches lost state when hp reaches zero", () => {
 
 test("sword attack damages the boss", () => {
   const game = createGame();
-  game.currentScreen = 1;
+  game.currentScreen = 4;
   game.player.x = game.boss.x - 40;
   game.player.y = game.boss.y + 40;
   game.player.facing = 1;
@@ -138,7 +142,7 @@ test("sword attack damages the boss", () => {
 
 test("defeating the boss wins the game", () => {
   const game = createGame();
-  game.currentScreen = 1;
+  game.currentScreen = 4;
   game.boss.hp = 1;
   game.player.x = game.boss.x - 40;
   game.player.y = game.boss.y + 40;
@@ -166,7 +170,7 @@ test("player switches from boss screen back to first screen at the left edge", (
 
 test("boss belongs to the second screen and is short enough to jump over", () => {
   const game = createGame();
-  assert.equal(game.boss.screen, 1);
+  assert.equal(game.boss.screen, 4);
   assert.equal(game.boss.w, 55);
   assert.equal(game.boss.h, 58);
   assert.equal(game.boss.y + game.boss.h, 456);
@@ -174,7 +178,7 @@ test("boss belongs to the second screen and is short enough to jump over", () =>
 
 test("boss waits three seconds before windup and charges after windup", () => {
   const game = createGame();
-  game.currentScreen = 1;
+  game.currentScreen = 4;
   game.player.x = game.boss.x - 120;
 
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 2.9);
@@ -185,4 +189,71 @@ test("boss waits three seconds before windup and charges after windup", () => {
 
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 0.91);
   assert.equal(game.boss.phase, "charge");
+});
+
+test("level has five screens with boss on the final screen", () => {
+  const game = createGame();
+  assert.equal(game.level.screens.length, 5);
+  assert.equal(game.boss.screen, 4);
+});
+
+test("player can advance through all five screens and return one screen", () => {
+  const game = createGame();
+  for (let screen = 1; screen <= 4; screen += 1) {
+    game.player.x = 950;
+    updateGame(game, { left: false, right: true, jump: false, attack: false, restart: false }, 1 / 60);
+    assert.equal(game.currentScreen, screen);
+    assert.equal(game.player.x, 24);
+  }
+
+  game.player.x = -2;
+  updateGame(game, { left: true, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.currentScreen, 3);
+  assert.equal(game.player.x, 904);
+});
+
+test("touching a checkpoint stores respawn position", () => {
+  const game = createGame();
+  game.currentScreen = 3;
+  const checkpoint = game.level.screens[3].checkpoints[0];
+  game.player.x = checkpoint.x;
+  game.player.y = checkpoint.y;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+
+  assert.deepEqual(game.checkpoint, {
+    screen: 3,
+    x: checkpoint.spawnX,
+    y: checkpoint.spawnY
+  });
+});
+
+test("restart respawns at the active checkpoint with full health", () => {
+  const game = createGame();
+  game.checkpoint = { screen: 3, x: 120, y: 400 };
+  game.currentScreen = 4;
+  game.player.hp = 0;
+  game.state = "lost";
+
+  const restarted = restartGame(game);
+
+  assert.equal(restarted.currentScreen, 3);
+  assert.equal(restarted.player.x, 120);
+  assert.equal(restarted.player.y, 400);
+  assert.equal(restarted.player.hp, 5);
+});
+
+test("touching spikes damages the player once during invulnerability", () => {
+  const game = createGame();
+  game.currentScreen = 2;
+  const spike = game.level.screens[2].spikes[0];
+  game.player.x = spike.x;
+  game.player.y = spike.y - game.player.h + 4;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.player.hp, 4);
+  assert.equal(game.player.invuln > 0, true);
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.player.hp, 4);
 });
