@@ -59,15 +59,32 @@ function drawBoss(ctx, boss) {
   ctx.fillRect(x + w - 16, y, 12, 16);
 }
 
+function drawBossWarning(ctx, boss) {
+  if (boss.phase !== "windup") {
+    return;
+  }
+
+  const laneX = boss.chargeDirection === -1 ? 0 : boss.x;
+  const laneW = boss.chargeDirection === -1 ? boss.x + boss.w : WIDTH - boss.x;
+
+  ctx.fillStyle = "rgb(214 95 95 / 0.35)";
+  ctx.fillRect(laneX, GROUND_Y - 18, laneW, 18);
+  ctx.fillStyle = "#d65f5f";
+  for (let x = laneX + 16; x < laneX + laneW; x += 42) {
+    ctx.fillRect(x, GROUND_Y - 34, 22, 8);
+    ctx.fillRect(x + (boss.chargeDirection === -1 ? -8 : 8), GROUND_Y - 42, 8, 24);
+  }
+}
+
 export function renderGame(ctx, game) {
-  const level = game.level;
+  const screen = game.level.screens[game.currentScreen];
 
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
   ctx.fillStyle = "#8fd2ff";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   ctx.fillStyle = "#5d3f24";
-  for (const platform of level.platforms) {
+  for (const platform of screen.platforms) {
     ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
     ctx.fillStyle = "#3f8f45";
     ctx.fillRect(platform.x, platform.y, platform.w, 8);
@@ -77,19 +94,30 @@ export function renderGame(ctx, game) {
   drawPlayer(ctx, game.player);
 
   for (const enemy of game.enemies) {
-    if (enemy.dead) continue;
+    if (enemy.dead || enemy.screen !== game.currentScreen) continue;
     drawSlime(ctx, enemy);
   }
 
-  drawBoss(ctx, game.boss);
+  if (game.currentScreen === game.boss.screen) {
+    drawBossWarning(ctx, game.boss);
+    drawBoss(ctx, game.boss);
+  }
 
-  ctx.fillStyle = "#263238";
-  ctx.fillRect(760, 96, 4, GROUND_Y - 96);
+  if (game.currentScreen === 0) {
+    ctx.fillStyle = "#263238";
+    ctx.fillRect(936, 96, 4, GROUND_Y - 96);
+  } else {
+    ctx.fillStyle = "#263238";
+    ctx.fillRect(20, 96, 4, GROUND_Y - 96);
+  }
 
   ctx.fillStyle = "#17202a";
   ctx.font = "20px monospace";
   ctx.fillText(`HP: ${game.player.hp}`, 24, 32);
-  ctx.fillText(`Boss HP: ${game.boss.hp}`, 760, 32);
+  ctx.fillText(`Screen: ${game.currentScreen + 1}/2`, 408, 32);
+  if (game.currentScreen === game.boss.screen) {
+    ctx.fillText(`Boss HP: ${game.boss.hp}`, 760, 32);
+  }
 
   if (game.state === "lost") {
     ctx.fillStyle = "rgb(0 0 0 / 0.55)";

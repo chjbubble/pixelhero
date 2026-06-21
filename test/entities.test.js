@@ -71,6 +71,7 @@ test("player reaches lost state when hp reaches zero", () => {
 
 test("sword attack damages the boss", () => {
   const game = createGame();
+  game.currentScreen = 1;
   game.player.x = game.boss.x - 40;
   game.player.y = game.boss.y + 40;
   game.player.facing = 1;
@@ -80,10 +81,50 @@ test("sword attack damages the boss", () => {
 
 test("defeating the boss wins the game", () => {
   const game = createGame();
+  game.currentScreen = 1;
   game.boss.hp = 1;
   game.player.x = game.boss.x - 40;
   game.player.y = game.boss.y + 40;
   game.player.facing = 1;
   updateGame(game, { left: false, right: false, jump: false, attack: true, restart: false }, 1 / 60);
   assert.equal(game.state, "won");
+});
+
+test("player switches from first screen to boss screen at the right edge", () => {
+  const game = createGame();
+  game.player.x = 950;
+  updateGame(game, { left: false, right: true, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.currentScreen, 1);
+  assert.equal(game.player.x, 24);
+});
+
+test("player switches from boss screen back to first screen at the left edge", () => {
+  const game = createGame();
+  game.currentScreen = 1;
+  game.player.x = -2;
+  updateGame(game, { left: true, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.currentScreen, 0);
+  assert.equal(game.player.x, 904);
+});
+
+test("boss belongs to the second screen and is short enough to jump over", () => {
+  const game = createGame();
+  assert.equal(game.boss.screen, 1);
+  assert.equal(game.boss.h, 72);
+  assert.equal(game.boss.y + game.boss.h, 456);
+});
+
+test("boss waits three seconds before windup and charges after windup", () => {
+  const game = createGame();
+  game.currentScreen = 1;
+  game.player.x = game.boss.x - 120;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 2.9);
+  assert.equal(game.boss.phase, "idle");
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 0.11);
+  assert.equal(game.boss.phase, "windup");
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 0.91);
+  assert.equal(game.boss.phase, "charge");
 });
