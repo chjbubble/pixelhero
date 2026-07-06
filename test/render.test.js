@@ -7,6 +7,7 @@ import {
   getBossTrapStyle,
   getBossDrawBox,
   getBossWarningLine,
+  getWorldViewTransform,
   getCheckpointSprite,
   getEnemyPose,
   getGroundTiles,
@@ -78,6 +79,28 @@ test("background tiles render double size without repeating lower rows", () => {
   assert.deepEqual(graveyard[0], { asset: "backgrounds", sx: 126, sy: 0, sw: 18, sh: 18, x: 0, y: 0, w: 90, h: 90 });
   assert.deepEqual(graveyard.filter((tile) => tile.y === 0).slice(0, 4).map((tile) => tile.sx), [126, 108, 108, 126]);
   assert.deepEqual([...graveyardTopColumns].sort((a, b) => a - b), [108, 126]);
+});
+
+test("portrait world view scales content by 50 percent without changing canvas size", () => {
+  assert.deepEqual(
+    getWorldViewTransform({
+      scale: 1,
+      cameraX: 120,
+      mapWidth: 3840,
+      player: { x: 600, w: 32 }
+    }),
+    { scale: 1, x: 120, y: 0 }
+  );
+
+  assert.deepEqual(
+    getWorldViewTransform({
+      scale: 1.5,
+      cameraX: 120,
+      mapWidth: 3840,
+      player: { x: 600, w: 32 }
+    }),
+    { scale: 1.5, x: 296, y: 180 }
+  );
 });
 
 test("checkpoint sign sprite points right", () => {

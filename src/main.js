@@ -14,6 +14,7 @@ const ctx = canvas.getContext("2d");
 canvas.width = WIDTH;
 canvas.height = HEIGHT;
 ctx.imageSmoothingEnabled = false;
+const portraitQuery = window.matchMedia("(orientation: portrait)");
 
 installKeyboardListeners();
 installTouchControls();
@@ -46,7 +47,7 @@ function frame(now) {
     updateGame(game, actions, dt);
     playSoundEvents(game.soundEvents);
   }
-  renderGame(ctx, game);
+  renderGame(ctx, game, { worldScale: portraitQuery.matches ? 1.5 : 1 });
   restartPanel.hidden = selectingLevel || game.state === "playing";
   requestAnimationFrame(frame);
 }

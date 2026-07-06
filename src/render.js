@@ -449,6 +449,19 @@ export function getBossWarningLine(boss) {
   };
 }
 
+export function getWorldViewTransform({ scale = 1, cameraX = 0, mapWidth = WIDTH, player }) {
+  if (scale <= 1) {
+    return { scale: 1, x: cameraX, y: 0 };
+  }
+
+  const viewW = WIDTH / scale;
+  const viewH = HEIGHT / scale;
+  const playerCenterX = player ? player.x + player.w / 2 : cameraX + viewW / 2;
+  const x = Math.max(0, Math.min(mapWidth - viewW, playerCenterX - viewW / 2));
+  const y = Math.max(0, Math.min(HEIGHT - viewH, GROUND_Y + 84 - viewH));
+  return { scale, x: Math.round(x), y: Math.round(y) };
+}
+
 export function getHealthBar(hp, maxHp, w) {
   const ratio = Math.max(0, Math.min(1, hp / maxHp));
   return { w, fillW: Math.round(w * ratio) };
@@ -857,11 +870,17 @@ function drawSpikes(ctx, spike) {
   }
 }
 
-export function renderGame(ctx, game) {
+export function renderGame(ctx, game, options = {}) {
   const inWorld = game.currentScreen !== BOSS_SCREEN;
   const screen = inWorld ? game.level.worldMap : game.level.bossScreen;
   const cameraX = inWorld ? game.cameraX : 0;
   const mapWidth = inWorld ? game.level.worldMap.width : WIDTH;
+  const view = getWorldViewTransform({
+    scale: options.worldScale ?? 1,
+    cameraX,
+    mapWidth,
+    player: game.player
+  });
   const palette = getThemePalette(game.level.theme);
 
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
@@ -869,7 +888,8 @@ export function renderGame(ctx, game) {
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
   ctx.save();
-  ctx.translate(-cameraX, 0);
+  ctx.scale(view.scale, view.scale);
+  ctx.translate(-view.x, -view.y);
   drawBackground(ctx, game.level.theme, mapWidth);
   drawPits(ctx, screen.platforms, mapWidth);
 
