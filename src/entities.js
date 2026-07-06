@@ -1,18 +1,30 @@
-import { BOSS_CHARGE_MAX_X, BOSS_CHARGE_MIN_X, GameState, GROUND_Y, HEIGHT, WIDTH } from "./constants.js";
+import {
+  BOSS_CHARGE_MAX_X,
+  BOSS_CHARGE_MIN_X,
+  BOSS_SCREEN,
+  GameState,
+  GROUND_Y,
+  HEIGHT,
+  WIDTH,
+  WORLD_WIDTH
+} from "./constants.js";
 import { createLevel } from "./levels.js";
-import { rectsOverlap } from "./math.js";
+import { clamp, getCameraX, rectsOverlap } from "./math.js";
 
 const PLAYER_SPEED = 240;
 const JUMP_SPEED = 560;
 const GRAVITY = 1500;
 const SCREEN_LEFT_ENTRY_X = 24;
 const SCREEN_RIGHT_ENTRY_X = WIDTH - 56;
+const WORLD_RIGHT_ENTRY_X = WORLD_WIDTH - 56;
 const BOSS_IDLE_SECONDS = 3;
 const BOSS_WINDUP_SECONDS = 0.9;
 const BOSS_CHARGE_SECONDS = 0.55;
 const MAX_PLAYER_HP = 5;
 const ARROW_SPEED = 520;
 const BOSS_SHOT_SPEED = 360;
+const BOSS_TRAP_W = 72;
+const BOSS_TRAP_H = 18;
 
 export function createGame(chapterIndex = 0) {
   const level = createLevel(chapterIndex);
@@ -21,6 +33,7 @@ export function createGame(chapterIndex = 0) {
     chapter: chapterIndex,
     level,
     currentScreen: 0,
+    cameraX: getCameraX(level.spawn.x, 32, level.worldMap.width, WIDTH),
     bossDefeated: false,
     checkpoint: null,
     player: {
@@ -42,8 +55,7 @@ export function createGame(chapterIndex = 0) {
       maxJumps: 2,
       jumpWasPressed: false
     },
-    enemies: level.screens.flatMap((screen, screenIndex) =>
-      screen.enemies.map((enemy) => ({
+    enemies: level.worldMap.enemies.map((enemy) => ({
       x: enemy.x,
       y: enemy.y,
       w: 34,
@@ -54,10 +66,9 @@ export function createGame(chapterIndex = 0) {
       dead: false,
       kind: enemy.kind ?? level.enemyKind,
       patrolMin: enemy.patrolMin,
-        patrolMax: enemy.patrolMax,
-        screen: screenIndex
-      }))
-    ),
+      patrolMax: enemy.patrolMax,
+      arena: "world"
+    })),
     boss: {
       x: level.boss.x,
       y: level.boss.y,
@@ -73,31 +84,44 @@ export function createGame(chapterIndex = 0) {
       patrolMin: level.boss.patrolMin ?? BOSS_CHARGE_MIN_X,
       patrolMax: level.boss.patrolMax ?? BOSS_CHARGE_MAX_X,
       phase: "idle",
-      phaseTimer: level.boss.attack === "ranged" ? 0 : BOSS_IDLE_SECONDS,
+      phaseTimer: level.boss.attack === "ranged" ? 0 : level.boss.idleSeconds ?? BOSS_IDLE_SECONDS,
       vx: level.boss.attack === "ranged" ? level.boss.patrolSpeed : 0,
-      chargeDirection: -1
+      chargeDirection: -1,
+      trap: null
     },
-    crates: level.screens.flatMap((screen, screenIndex) =>
-      screen.crates.map((crate) => ({
-        x: crate.x,
-        y: crate.y,
-        w: 34,
-        h: 34,
-        hp: 1,
-        type: crate.type,
-        style: crate.style ?? level.crateStyle,
-        dead: false,
-        screen: screenIndex
-      }))
-    ),
+    crates: level.worldMap.crates.map((crate) => ({
+      x: crate.x,
+      y: crate.y,
+      w: 34,
+      h: 34,
+      hp: 1,
+      type: crate.type,
+      style: crate.style ?? level.crateStyle,
+      dead: false,
+      arena: "world"
+    })),
     pickups: [],
     projectiles: [],
-    bossShots: []
+    bossShots: [],
+    bossTraps: []
   };
 }
 
+function isInWorldMap(game) {
+  return game.currentScreen !== BOSS_SCREEN;
+}
+
 function getActiveScreen(game) {
-  return game.level.screens[game.currentScreen];
+  return isInWorldMap(game) ? game.level.worldMap : game.level.bossScreen;
+}
+
+function updateCamera(game) {
+  if (!isInWorldMap(game)) {
+    game.cameraX = 0;
+    return;
+  }
+
+  game.cameraX = getCameraX(game.player.x, game.player.w, game.level.worldMap.width, WIDTH);
 }
 
 function hasGroundUnderPlayer(screen, player) {
@@ -113,14 +137,27 @@ function getBossChargeDirection(boss, player) {
   return player.x < boss.x ? -1 : 1;
 }
 
+function getTrapForPlayer(player) {
+  return {
+    x: clamp(player.x + player.w / 2 - BOSS_TRAP_W / 2, BOSS_CHARGE_MIN_X, BOSS_CHARGE_MAX_X - BOSS_TRAP_W),
+    y: Math.min(GROUND_Y, player.y + player.h) - BOSS_TRAP_H,
+    w: BOSS_TRAP_W,
+    h: BOSS_TRAP_H,
+    active: false,
+    hit: false,
+    timer: 0
+  };
+}
+
 export function restartGame(previousGame) {
   const game = createGame(previousGame.chapter ?? 0);
   const checkpoint = previousGame.checkpoint;
   if (previousGame.state === GameState.LOST && checkpoint) {
     game.checkpoint = { ...checkpoint };
-    game.currentScreen = checkpoint.screen;
+    game.currentScreen = checkpoint.screen ?? 0;
     game.player.x = checkpoint.x;
     game.player.y = checkpoint.y;
+    updateCamera(game);
   }
   return game;
 }
@@ -162,18 +199,23 @@ function damagePlayer(game, sourceX) {
 
 function checkScreenTransitions(game) {
   const player = game.player;
-  const lastScreen = game.level.screens.length - 1;
 
-  if (player.x + player.w >= WIDTH && game.currentScreen < lastScreen) {
-    game.currentScreen += 1;
-    player.x = SCREEN_LEFT_ENTRY_X;
-    player.y = Math.min(player.y, GROUND_Y - player.h);
+  if (isInWorldMap(game)) {
+    if (player.x + player.w >= WORLD_WIDTH) {
+      game.currentScreen = BOSS_SCREEN;
+      player.x = SCREEN_LEFT_ENTRY_X;
+      player.y = Math.min(player.y, GROUND_Y - player.h);
+      game.cameraX = 0;
+      return;
+    }
+
+    player.x = clamp(player.x, 0, WORLD_WIDTH - player.w);
+    updateCamera(game);
     return;
   }
 
   if (
     player.x + player.w >= WIDTH &&
-    game.currentScreen === lastScreen &&
     game.bossDefeated &&
     game.level.nextChapter !== null
   ) {
@@ -181,14 +223,15 @@ function checkScreenTransitions(game) {
     return;
   }
 
-  if (player.x <= 0 && game.currentScreen > 0) {
-    game.currentScreen -= 1;
-    player.x = SCREEN_RIGHT_ENTRY_X;
+  if (player.x <= 0) {
+    game.currentScreen = 0;
+    player.x = WORLD_RIGHT_ENTRY_X;
     player.y = Math.min(player.y, GROUND_Y - player.h);
+    updateCamera(game);
     return;
   }
 
-  player.x = Math.max(0, Math.min(WIDTH - player.w, player.x));
+  player.x = clamp(player.x, 0, WIDTH - player.w);
 }
 
 export function updateGame(game, actions, dt) {
@@ -258,7 +301,7 @@ export function updateGame(game, actions, dt) {
   for (const checkpoint of activeScreen.checkpoints) {
     if (rectsOverlap(player, checkpoint)) {
       game.checkpoint = {
-        screen: game.currentScreen,
+        screen: isInWorldMap(game) ? 0 : BOSS_SCREEN,
         x: checkpoint.spawnX,
         y: checkpoint.spawnY
       };
@@ -284,7 +327,7 @@ export function updateGame(game, actions, dt) {
         w: 12,
         h: 6,
         vx: player.facing * ARROW_SPEED,
-        screen: game.currentScreen,
+        arena: isInWorldMap(game) ? "world" : "boss",
         dead: false
       });
     } else if (actions.attack) {
@@ -297,7 +340,7 @@ export function updateGame(game, actions, dt) {
   }
 
   for (const enemy of game.enemies) {
-    if (enemy.dead || enemy.screen !== game.currentScreen) continue;
+    if (enemy.dead || !isInWorldMap(game)) continue;
     enemy.invuln = Math.max(0, enemy.invuln - dt);
     enemy.x += enemy.vx * dt;
     if (enemy.x < enemy.patrolMin || enemy.x > enemy.patrolMax) {
@@ -309,14 +352,14 @@ export function updateGame(game, actions, dt) {
   const sword = getSwordHitbox(player);
   if (sword) {
     for (const crate of game.crates) {
-      if (!crate.dead && crate.screen === game.currentScreen && rectsOverlap(sword, crate)) {
+      if (!crate.dead && isInWorldMap(game) && rectsOverlap(sword, crate)) {
         crate.dead = true;
         spawnPickup(game, crate);
       }
     }
 
     for (const enemy of game.enemies) {
-      if (!enemy.dead && enemy.screen === game.currentScreen && enemy.invuln <= 0 && rectsOverlap(sword, enemy)) {
+      if (!enemy.dead && isInWorldMap(game) && enemy.invuln <= 0 && rectsOverlap(sword, enemy)) {
         enemy.hp -= 1;
         enemy.invuln = 0.28;
         enemy.x += player.facing * 14;
@@ -337,21 +380,22 @@ export function updateGame(game, actions, dt) {
   }
 
   for (const pickup of game.pickups) {
-    if (!pickup.dead && pickup.screen === game.currentScreen && rectsOverlap(player, pickup)) {
+    if (!pickup.dead && pickup.arena === (isInWorldMap(game) ? "world" : "boss") && rectsOverlap(player, pickup)) {
       applyPickup(player, pickup);
     }
   }
 
   for (const projectile of game.projectiles) {
-    if (projectile.dead || projectile.screen !== game.currentScreen) continue;
+    if (projectile.dead || projectile.arena !== (isInWorldMap(game) ? "world" : "boss")) continue;
     projectile.x += projectile.vx * dt;
-    if (projectile.x < 0 || projectile.x > WIDTH) {
+    const maxX = isInWorldMap(game) ? WORLD_WIDTH : WIDTH;
+    if (projectile.x < 0 || projectile.x > maxX) {
       projectile.dead = true;
       continue;
     }
 
     for (const enemy of game.enemies) {
-      if (!enemy.dead && enemy.screen === game.currentScreen && enemy.invuln <= 0 && rectsOverlap(projectile, enemy)) {
+      if (!enemy.dead && isInWorldMap(game) && enemy.invuln <= 0 && rectsOverlap(projectile, enemy)) {
         enemy.hp -= 1;
         enemy.invuln = 0.28;
         projectile.dead = true;
@@ -373,13 +417,13 @@ export function updateGame(game, actions, dt) {
   }
 
   for (const enemy of game.enemies) {
-    if (!enemy.dead && enemy.screen === game.currentScreen && rectsOverlap(player, enemy)) {
+    if (!enemy.dead && isInWorldMap(game) && rectsOverlap(player, enemy)) {
       damagePlayer(game, enemy.x);
     }
   }
 
   for (const shot of game.bossShots) {
-    if (shot.dead || shot.screen !== game.currentScreen) continue;
+    if (shot.dead || game.currentScreen !== game.boss.screen) continue;
     shot.x += shot.vx * dt;
     if (shot.x < BOSS_CHARGE_MIN_X || shot.x > BOSS_CHARGE_MAX_X) {
       shot.dead = true;
@@ -390,6 +434,17 @@ export function updateGame(game, actions, dt) {
       damagePlayer(game, shot.x);
     }
   }
+
+  for (const trap of game.bossTraps) {
+    if (trap.active) {
+      trap.timer -= dt;
+    }
+    if (trap.active && !trap.hit && rectsOverlap(player, trap)) {
+      trap.hit = true;
+      damagePlayer(game, trap.x + trap.w / 2);
+    }
+  }
+  game.bossTraps = game.bossTraps.filter((trap) => !trap.active || trap.timer > 0);
 
   const boss = game.boss;
   const playerOnBossScreen = game.currentScreen === boss.screen;
@@ -403,7 +458,24 @@ export function updateGame(game, actions, dt) {
   boss.invuln = Math.max(0, boss.invuln - dt);
   boss.phaseTimer -= dt;
 
-  if (boss.attack === "ranged") {
+  if (boss.attack === "spikeTrap") {
+    if (boss.phase === "idle" && boss.phaseTimer <= 0) {
+      boss.phase = "windup";
+      boss.phaseTimer = game.level.boss.trapWindupSeconds ?? BOSS_WINDUP_SECONDS;
+      boss.trap = getTrapForPlayer(player);
+      boss.trap.timer = boss.phaseTimer;
+      game.bossTraps.push(boss.trap);
+    } else if (boss.phase === "windup" && boss.phaseTimer <= 0) {
+      boss.phase = "charge";
+      boss.phaseTimer = game.level.boss.trapActiveSeconds ?? 0.5;
+      boss.trap.active = true;
+      boss.trap.timer = boss.phaseTimer;
+    } else if (boss.phase === "charge" && boss.phaseTimer <= 0) {
+      boss.phase = "idle";
+      boss.phaseTimer = game.level.boss.idleSeconds ?? BOSS_IDLE_SECONDS;
+      boss.trap = null;
+    }
+  } else if (boss.attack === "ranged") {
     if (boss.phase === "idle") {
       boss.x += boss.vx * dt;
       if (boss.x < boss.patrolMin || boss.x > boss.patrolMax) {
@@ -475,7 +547,7 @@ function spawnPickup(game, crate) {
     h: 26,
     type: crate.type,
     dead: false,
-    screen: crate.screen
+    arena: crate.arena
   });
 }
 

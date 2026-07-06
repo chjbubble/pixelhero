@@ -36,7 +36,8 @@ canvas {
 }
 
 .touch-controls,
-.restart-panel {
+.restart-panel,
+.level-select-panel {
   position: absolute;
   inset: 0;
 }
@@ -107,12 +108,16 @@ canvas {
 }
 
 .restart-panel {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
   background: rgb(0 0 0 / 22%);
 }
 
-.restart-panel[hidden] {
+.restart-panel[hidden],
+.level-select-panel[hidden] {
   display: none;
 }
 
@@ -125,6 +130,31 @@ canvas {
   color: #17202a;
   font-size: 24px;
   font-weight: 700;
+}
+
+.level-select-panel {
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  background: rgb(23 32 42 / 82%);
+}
+
+.level-select-button {
+  width: 112px;
+  height: 112px;
+  border: 3px solid rgb(247 242 223 / 86%);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 24%);
+  color: #f7f2df;
+  font: 700 24px/1.25 "Microsoft YaHei", "Segoe UI", sans-serif;
+  white-space: pre-line;
+  text-align: center;
+}
+
+.level-select-button:active {
+  background: rgb(255 255 255 / 18%);
 }
 
 @media (orientation: portrait) {
@@ -152,6 +182,11 @@ canvas {
     inset: auto;
     width: 100%;
     height: 220px;
+  }
+
+  .level-select-panel {
+    flex-wrap: wrap;
+    align-content: center;
   }
 
   .touch-stick {

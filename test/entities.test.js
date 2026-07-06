@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GROUND_Y } from "../src/constants.js";
+import { BOSS_SCREEN, GROUND_Y, WORLD_WIDTH, WIDTH } from "../src/constants.js";
 import { createGame, restartGame, updateGame } from "../src/entities.js";
 
 test("player falls to the ground and becomes grounded", () => {
@@ -142,7 +142,7 @@ test("sword attack damages the boss", () => {
 });
 
 test("defeating the boss wins the game", () => {
-  const game = createGame(1);
+  const game = createGame(2);
   game.currentScreen = 4;
   game.boss.hp = 1;
   game.player.x = game.boss.x - 40;
@@ -152,21 +152,29 @@ test("defeating the boss wins the game", () => {
   assert.equal(game.state, "won");
 });
 
-test("player switches from first screen to boss screen at the right edge", () => {
+test("player stays on the merged world map when reaching a former screen edge", () => {
   const game = createGame();
   game.player.x = 950;
   updateGame(game, { left: false, right: true, jump: false, attack: false, restart: false }, 1 / 60);
-  assert.equal(game.currentScreen, 1);
+  assert.equal(game.currentScreen, 0);
+  assert.equal(game.player.x > 950, true);
+});
+
+test("player enters the boss arena at the end of the merged world map", () => {
+  const game = createGame();
+  game.player.x = WORLD_WIDTH - 4;
+  updateGame(game, { left: false, right: true, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.currentScreen, BOSS_SCREEN);
   assert.equal(game.player.x, 24);
 });
 
-test("player switches from boss screen back to first screen at the left edge", () => {
+test("player returns from the boss arena to the end of the merged world map", () => {
   const game = createGame();
-  game.currentScreen = 1;
+  game.currentScreen = BOSS_SCREEN;
   game.player.x = -2;
   updateGame(game, { left: true, right: false, jump: false, attack: false, restart: false }, 1 / 60);
   assert.equal(game.currentScreen, 0);
-  assert.equal(game.player.x, 904);
+  assert.equal(game.player.x, WORLD_WIDTH - 56);
 });
 
 test("boss belongs to the second screen and is short enough to jump over", () => {
@@ -230,32 +238,29 @@ test("level has five screens with boss on the final screen", () => {
   assert.equal(game.boss.screen, 4);
 });
 
-test("player can advance through all five screens and return one screen", () => {
+test("player can traverse the merged world map and enter the boss arena", () => {
   const game = createGame();
-  for (let screen = 1; screen <= 4; screen += 1) {
-    game.player.x = 950;
-    updateGame(game, { left: false, right: true, jump: false, attack: false, restart: false }, 1 / 60);
-    assert.equal(game.currentScreen, screen);
-    assert.equal(game.player.x, 24);
-  }
+  game.player.x = WORLD_WIDTH - 4;
+  updateGame(game, { left: false, right: true, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.currentScreen, BOSS_SCREEN);
+  assert.equal(game.player.x, 24);
 
   game.player.x = -2;
   updateGame(game, { left: true, right: false, jump: false, attack: false, restart: false }, 1 / 60);
-  assert.equal(game.currentScreen, 3);
-  assert.equal(game.player.x, 904);
+  assert.equal(game.currentScreen, 0);
+  assert.equal(game.player.x, WORLD_WIDTH - 56);
 });
 
 test("touching a checkpoint stores respawn position", () => {
   const game = createGame();
-  game.currentScreen = 3;
-  const checkpoint = game.level.screens[3].checkpoints[0];
+  const checkpoint = game.level.worldMap.checkpoints[0];
   game.player.x = checkpoint.x;
   game.player.y = checkpoint.y;
 
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
 
   assert.deepEqual(game.checkpoint, {
-    screen: 3,
+    screen: 0,
     x: checkpoint.spawnX,
     y: checkpoint.spawnY
   });
@@ -263,15 +268,15 @@ test("touching a checkpoint stores respawn position", () => {
 
 test("restart respawns at the active checkpoint with full health", () => {
   const game = createGame();
-  game.checkpoint = { screen: 3, x: 120, y: 400 };
-  game.currentScreen = 4;
+  game.checkpoint = { screen: 0, x: 2992, y: 400 };
+  game.currentScreen = BOSS_SCREEN;
   game.player.hp = 0;
   game.state = "lost";
 
   const restarted = restartGame(game);
 
-  assert.equal(restarted.currentScreen, 3);
-  assert.equal(restarted.player.x, 120);
+  assert.equal(restarted.currentScreen, 0);
+  assert.equal(restarted.player.x, 2992);
   assert.equal(restarted.player.y, 400);
   assert.equal(restarted.player.hp, 5);
 });
@@ -292,8 +297,7 @@ test("restart after victory starts a new game at the original spawn", () => {
 
 test("touching spikes damages the player once during invulnerability", () => {
   const game = createGame();
-  game.currentScreen = 2;
-  const spike = game.level.screens[2].spikes[0];
+  const spike = game.level.worldMap.spikes[0];
   game.player.x = spike.x;
   game.player.y = spike.y - game.player.h + 4;
 
@@ -305,18 +309,17 @@ test("touching spikes damages the player once during invulnerability", () => {
   assert.equal(game.player.hp, 4);
 });
 
-test("each screen starts with one crate", () => {
+test("merged world map starts with four crates", () => {
   const game = createGame();
-  assert.deepEqual(game.level.screens.map((screen) => screen.crates.length), [1, 1, 1, 1, 1]);
-  assert.equal(game.crates.length, 5);
+  assert.equal(game.level.worldMap.crates.length, 4);
+  assert.equal(game.crates.length, 4);
 });
 
 test("crates sit on raised platforms", () => {
   const game = createGame();
 
-  for (const screen of game.level.screens) {
-    const crate = screen.crates[0];
-    const platform = screen.platforms.find(
+  for (const crate of game.level.worldMap.crates) {
+    const platform = game.level.worldMap.platforms.find(
       (candidate) =>
         candidate.y < GROUND_Y &&
         crate.y + 34 === candidate.y &&
@@ -402,8 +405,7 @@ test("attack stays melee when the player has arrows", () => {
 
 test("falling into the fourth screen pit loses immediately", () => {
   const game = createGame();
-  game.currentScreen = 3;
-  game.player.x = 430;
+  game.player.x = WIDTH * 3 + 430;
   game.player.y = GROUND_Y - game.player.h;
 
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1);
@@ -412,9 +414,9 @@ test("falling into the fourth screen pit loses immediately", () => {
 
 test("fourth screen spike sits on the right platform instead of the pit", () => {
   const game = createGame();
-  const pitStart = 380;
-  const pitEnd = 520;
-  const spike = game.level.screens[3].spikes[0];
+  const pitStart = WIDTH * 3 + 380;
+  const pitEnd = WIDTH * 3 + 520;
+  const spike = game.level.worldMap.spikes.at(-1);
 
   assert.equal(spike.x >= pitEnd || spike.x + spike.w <= pitStart, true);
 });
@@ -514,4 +516,60 @@ test("graveyard boss waits twice as long between ranged attacks", () => {
 
   assert.equal(game.boss.phase, "idle");
   assert.equal(game.boss.phaseTimer, 6);
+});
+
+test("third chapter uses ruins enemies and spike trap boss", () => {
+  const game = createGame(2);
+
+  assert.equal(game.level.name, "雪地遗迹");
+  assert.equal(game.level.theme, "ruins");
+  assert.equal(game.enemies[0].kind, "ruinsBeast");
+  assert.equal(game.boss.kind, "spikeBoss");
+  assert.equal(game.boss.attack, "spikeTrap");
+  assert.equal(game.level.nextChapter, null);
+});
+
+test("second chapter boss unlocks the third chapter exit", () => {
+  const game = createGame(1);
+  game.currentScreen = 4;
+  game.boss.hp = 1;
+  game.player.x = game.boss.x - 40;
+  game.player.y = game.boss.y + 40;
+  game.player.facing = 1;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: true, shoot: false, restart: false }, 1 / 60);
+  game.player.x = 950;
+  updateGame(game, { left: false, right: true, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+
+  assert.equal(game.chapter, 2);
+  assert.equal(game.currentScreen, 0);
+});
+
+test("ruins boss marks player ground then raises one-hit spikes", () => {
+  const game = createGame(2);
+  game.currentScreen = BOSS_SCREEN;
+  game.player.x = 220;
+  game.player.y = GROUND_Y - game.player.h;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 2.01);
+  assert.equal(game.boss.phase, "windup");
+  assert.equal(game.bossTraps.length, 1);
+  assert.equal(game.bossTraps[0].active, false);
+  assert.equal(game.bossTraps[0].x, 200);
+
+  game.player.x = 500;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 0.91);
+  assert.equal(game.boss.phase, "charge");
+  assert.equal(game.bossTraps[0].active, true);
+
+  game.player.x = 200;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+  assert.equal(game.player.hp, 4);
+  game.player.invuln = 0;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+  assert.equal(game.player.hp, 4);
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 0.5);
+  assert.equal(game.boss.phase, "idle");
+  assert.equal(game.bossTraps.length, 0);
 });

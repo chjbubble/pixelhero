@@ -1,0 +1,18 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createLevel, getPitRanges, spikeOverlapsPit } from "../src/levels.js";
+
+test("spikes never overlap generated pit gaps", () => {
+  for (let chapterIndex = 0; chapterIndex < 3; chapterIndex += 1) {
+    const level = createLevel(chapterIndex);
+    const pits = getPitRanges(level.worldMap.platforms);
+
+    for (const spike of level.worldMap.spikes) {
+      assert.equal(
+        spikeOverlapsPit(spike, pits),
+        false,
+        `chapter ${chapterIndex} spike ${spike.x}-${spike.x + spike.w} overlaps a pit`
+      );
+    }
+  }
+});

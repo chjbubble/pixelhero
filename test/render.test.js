@@ -31,10 +31,24 @@ test("Kenney asset paths are stable browser-relative files", () => {
   assert.equal(getAssetPaths().zombieSlime, "./assets/brackeys_platformer_assets/sprites/slime_green.png");
   assert.equal(getAssetPaths().purpleSlimeBoss, "./assets/brackeys_platformer_assets/sprites/slime_purple.png");
   assert.equal(getAssetPaths().crate, "./assets/kenney_pixel-platformer/Tiles/tile_0010.png");
+  assert.equal(getAssetPaths().chest, "./assets/kenney_pixel-platformer/Tiles/tile_0145.png");
+  assert.equal(getAssetPaths().ruinsGroundTop, "./assets/kenney_pixel-platformer/Tiles/tile_0082.png");
+  assert.equal(getAssetPaths().ruinsEnemyA, "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0002.png");
+  assert.equal(getAssetPaths().ruinsEnemyB, "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0003.png");
   assert.equal(getAssetPaths().groundFill, "./assets/kenney/Tiles/tile_0006.png");
   assert.equal(getAssetPaths().armor, "./assets/kenney/Tiles/tile_0067.png");
   assert.equal(getAssetPaths().pitTop, "./assets/kenney_pixel-platformer/Tiles/tile_0033.png");
   assert.equal(getAssetPaths().pitFill, "./assets/kenney_pixel-platformer/Tiles/tile_0073.png");
+});
+
+test("ruins use requested top ground and background tiles", () => {
+  assert.deepEqual(getTerrainTile("ruins", 0), { asset: "ruinsGroundTop" });
+  assert.deepEqual(getTerrainTile("ruins", 1), { asset: "terrain", sx: 38, sy: 114, sw: 18, sh: 18 });
+
+  const tiles = getBackgroundTiles("ruins", 180, 450, 360);
+  assert.equal(tiles[0].asset, "ruinsBgFill");
+  assert.equal(tiles.at(-2).asset, "ruinsBgGroundB");
+  assert.equal(tiles.at(-1).asset, "ruinsBgGroundTop");
 });
 
 test("ground tiles use unscaled atlas cells without bordered source tiles", () => {

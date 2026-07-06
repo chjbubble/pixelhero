@@ -1,4 +1,4 @@
-import { BOSS_CHARGE_MAX_X, BOSS_CHARGE_MIN_X, HEIGHT, WIDTH, GROUND_Y } from "./constants.js";
+import { BOSS_CHARGE_MAX_X, BOSS_CHARGE_MIN_X, BOSS_SCREEN, HEIGHT, WIDTH, GROUND_Y } from "./constants.js";
 import { getSwordHitbox } from "./entities.js";
 
 const ASSET_PATHS = {
@@ -11,13 +11,26 @@ const ASSET_PATHS = {
   ground: "./assets/kenney/Tiles/tile_0000.png",
   groundFill: "./assets/kenney/Tiles/tile_0006.png",
   crate: "./assets/kenney_pixel-platformer/Tiles/tile_0010.png",
+  chest: "./assets/kenney_pixel-platformer/Tiles/tile_0145.png",
   tombstone: "./assets/kenney/Tiles/tile_0145.png",
   medkit: "./assets/kenney/Tiles/tile_0044.png",
   arrows: "./assets/kenney/Tiles/tile_0064.png",
   armor: "./assets/kenney/Tiles/tile_0067.png",
   pitTop: "./assets/kenney_pixel-platformer/Tiles/tile_0033.png",
   pitFill: "./assets/kenney_pixel-platformer/Tiles/tile_0073.png",
-  checkpoint: "./assets/kenney/Tiles/tile_0084.png"
+  checkpoint: "./assets/kenney/Tiles/tile_0084.png",
+  ruinsGroundTop: "./assets/kenney_pixel-platformer/Tiles/tile_0082.png",
+  ruinsEnemyA: "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0002.png",
+  ruinsEnemyB: "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0003.png",
+  ruinsBossA: "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0021.png",
+  ruinsBossB: "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0022.png",
+  ruinsBossC: "./assets/kenney_pixel-platformer/Tiles/Characters/tile_0023.png",
+  ruinsBgGroundTop: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0016.png",
+  ruinsBgGroundA: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0008.png",
+  ruinsBgGroundB: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0009.png",
+  ruinsBgGroundC: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0010.png",
+  ruinsBgGroundD: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0011.png",
+  ruinsBgFill: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0000.png"
 };
 
 const assets = loadAssets(ASSET_PATHS);
@@ -63,6 +76,10 @@ function drawAsset(ctx, name, x, y, w, h, flip = false) {
 }
 
 function drawAssetRegion(ctx, tile, x = tile.x, y = tile.y, w = tile.w, h = tile.h) {
+  if (tile.sx === undefined) {
+    return drawAsset(ctx, tile.asset, x, y, w, h);
+  }
+
   const image = assets[tile.asset];
   if (!imageReady(image)) {
     return false;
@@ -124,6 +141,9 @@ function packedTileSource(index, cols) {
 }
 
 export function getTerrainTile(theme, layer) {
+  if (theme === "ruins" && layer === 0) {
+    return { asset: "ruinsGroundTop" };
+  }
   const topTile = theme === "graveyard" ? 62 : 22;
   return { asset: "terrain", ...tileSource(layer === 0 ? topTile : 122, 20) };
 }
@@ -137,8 +157,8 @@ function drawGround(ctx, platform, theme) {
   return true;
 }
 
-function drawPits(ctx, platforms) {
-  for (const tile of getPitTiles(platforms)) {
+function drawPits(ctx, platforms, width = WIDTH) {
+  for (const tile of getPitTiles(platforms, width)) {
     if (!drawAsset(ctx, tile.asset, tile.x, tile.y, tile.w, tile.h)) {
       return false;
     }
@@ -147,6 +167,23 @@ function drawPits(ctx, platforms) {
 }
 
 export function getBackgroundTiles(theme, width = WIDTH, height = HEIGHT, groundY = GROUND_Y, tileSize = 90) {
+  if (theme === "ruins") {
+    const ground = ["ruinsBgGroundA", "ruinsBgGroundB", "ruinsBgGroundC", "ruinsBgGroundD"];
+    const tiles = [];
+    const rowOneY = groundY - tileSize * 2;
+    const rowTwoY = groundY - tileSize;
+    for (let y = 0; y < rowOneY; y += tileSize) {
+      for (let x = 0; x < width; x += tileSize) {
+        tiles.push({ asset: "ruinsBgFill", x, y, w: Math.min(tileSize, width - x), h: Math.min(tileSize, rowOneY - y) });
+      }
+    }
+    for (let x = 0; x < width; x += tileSize) {
+      tiles.push({ asset: ground[(Math.floor(x / tileSize) * 5) % ground.length], x, y: rowOneY, w: Math.min(tileSize, width - x), h: tileSize });
+      tiles.push({ asset: "ruinsBgGroundTop", x, y: rowTwoY, w: Math.min(tileSize, width - x), h: tileSize });
+    }
+    return tiles;
+  }
+
   const cols = theme === "graveyard" ? [6, 7] : [8, 9];
   const tiles = [];
   const rowOneY = groundY - tileSize * 2;
@@ -188,9 +225,9 @@ export function getBackgroundTiles(theme, width = WIDTH, height = HEIGHT, ground
   return tiles;
 }
 
-function drawBackground(ctx, theme) {
+function drawBackground(ctx, theme, width = WIDTH) {
   ctx.imageSmoothingEnabled = false;
-  for (const tile of getBackgroundTiles(theme)) {
+  for (const tile of getBackgroundTiles(theme, width)) {
     if (!drawAssetRegion(ctx, tile)) {
       return false;
     }
@@ -351,6 +388,10 @@ export function getCheckpointSprite() {
 
 export function getCrateSprite() {
   return { asset: "crate" };
+}
+
+function getCrateAsset(crate) {
+  return crate.style === "chest" ? "chest" : getCrateSprite().asset;
 }
 
 export function getPitTiles(platforms, width = WIDTH, height = HEIGHT, groundY = GROUND_Y, tileSize = 18) {
@@ -545,6 +586,17 @@ function drawZombie(ctx, enemy) {
 }
 
 function drawEnemy(ctx, enemy) {
+  if (enemy.kind === "ruinsBeast") {
+    const pose = getEnemyPose(enemy);
+    const asset = Math.floor(enemy.x / 12) % 2 === 0 ? "ruinsEnemyA" : "ruinsEnemyB";
+    if (drawAsset(ctx, asset, enemy.x, enemy.y - 8, enemy.w, enemy.h + 8, pose.facing === -1)) {
+      if (enemy.invuln > 0) {
+        drawHealthBar(ctx, enemy.x, enemy.y - 10, enemy.hp, 2, enemy.w, "#d65f5f");
+      }
+      return;
+    }
+  }
+
   if (enemy.kind === "zombie") {
     drawZombie(ctx, enemy);
     return;
@@ -582,6 +634,14 @@ function drawEnemy(ctx, enemy) {
 function drawBoss(ctx, boss) {
   const { x, y, w, h } = boss;
   const pose = getBossPose(boss);
+  if (boss.kind === "spikeBoss") {
+    const partW = Math.ceil(w / 3);
+    const parts = ["ruinsBossA", "ruinsBossB", "ruinsBossC"];
+    if (parts.every((asset, index) => drawAsset(ctx, asset, x + index * partW, y, partW, h, pose.facing === -1))) {
+      return;
+    }
+  }
+
   if (boss.kind === "zombieBoss") {
     const box = getBossDrawBox(boss);
     if (drawSpriteFrame(ctx, getBossSprite(boss), box.x, box.y, box.w, box.h, pose.facing === -1, false)) {
@@ -649,7 +709,7 @@ function drawBoss(ctx, boss) {
 }
 
 function drawBossWarning(ctx, boss) {
-  if (boss.phase !== "windup") {
+  if (boss.phase !== "windup" || boss.attack === "spikeTrap") {
     return;
   }
 
@@ -677,8 +737,7 @@ function drawBossWarning(ctx, boss) {
 }
 
 function drawCrate(ctx, crate) {
-  const sprite = getCrateSprite();
-  if (drawAsset(ctx, sprite.asset, crate.x, crate.y, crate.w, crate.h)) {
+  if (drawAsset(ctx, getCrateAsset(crate), crate.x, crate.y, crate.w, crate.h)) {
     return;
   }
 
@@ -689,6 +748,25 @@ function drawCrate(ctx, crate) {
   ctx.fillStyle = "#5d3f24";
   ctx.fillRect(crate.x + 14, crate.y, 6, crate.h);
   ctx.fillRect(crate.x, crate.y + 14, crate.w, 6);
+}
+
+function drawBossTrap(ctx, trap) {
+  if (!trap.active) {
+    ctx.fillStyle = "rgb(255 255 255 / 0.45)";
+    ctx.fillRect(trap.x, trap.y + trap.h - 4, trap.w, 4);
+    return;
+  }
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(trap.x, trap.y + trap.h - 5, trap.w, 5);
+  for (let x = trap.x; x < trap.x + trap.w; x += 16) {
+    ctx.beginPath();
+    ctx.moveTo(x, trap.y + trap.h);
+    ctx.lineTo(x + 8, trap.y);
+    ctx.lineTo(x + 16, trap.y + trap.h);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 function drawPickup(ctx, pickup) {
@@ -764,14 +842,20 @@ function drawSpikes(ctx, spike) {
 }
 
 export function renderGame(ctx, game) {
-  const screen = game.level.screens[game.currentScreen];
+  const inWorld = game.currentScreen !== BOSS_SCREEN;
+  const screen = inWorld ? game.level.worldMap : game.level.bossScreen;
+  const cameraX = inWorld ? game.cameraX : 0;
+  const mapWidth = inWorld ? game.level.worldMap.width : WIDTH;
   const palette = getThemePalette(game.level.theme);
 
   ctx.clearRect(0, 0, WIDTH, HEIGHT);
   ctx.fillStyle = palette.sky;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
-  drawBackground(ctx, game.level.theme);
-  drawPits(ctx, screen.platforms);
+
+  ctx.save();
+  ctx.translate(-cameraX, 0);
+  drawBackground(ctx, game.level.theme, mapWidth);
+  drawPits(ctx, screen.platforms, mapWidth);
 
   ctx.fillStyle = palette.platform;
   for (const platform of screen.platforms) {
@@ -789,40 +873,45 @@ export function renderGame(ctx, game) {
 
   for (const checkpoint of screen.checkpoints) {
     const active =
-      game.checkpoint?.screen === game.currentScreen &&
       game.checkpoint?.x === checkpoint.spawnX &&
       game.checkpoint?.y === checkpoint.spawnY;
     drawCheckpoint(ctx, checkpoint, active);
   }
 
   for (const crate of game.crates) {
-    if (!crate.dead && crate.screen === game.currentScreen) {
+    if (!crate.dead && inWorld) {
       drawCrate(ctx, crate);
     }
   }
 
   for (const pickup of game.pickups) {
-    if (!pickup.dead && pickup.screen === game.currentScreen) {
+    if (!pickup.dead && pickup.arena === (inWorld ? "world" : "boss")) {
       drawPickup(ctx, pickup);
     }
   }
 
   for (const arrow of game.projectiles) {
-    if (!arrow.dead && arrow.screen === game.currentScreen) {
+    if (!arrow.dead && arrow.arena === (inWorld ? "world" : "boss")) {
       drawArrow(ctx, arrow);
     }
   }
 
   for (const shot of game.bossShots) {
-    if (!shot.dead && shot.screen === game.currentScreen) {
+    if (!shot.dead && game.currentScreen === game.boss.screen) {
       drawBossShot(ctx, shot);
+    }
+  }
+
+  for (const trap of game.bossTraps) {
+    if (game.currentScreen === game.boss.screen) {
+      drawBossTrap(ctx, trap);
     }
   }
 
   drawPlayer(ctx, game.player);
 
   for (const enemy of game.enemies) {
-    if (enemy.dead || enemy.screen !== game.currentScreen) continue;
+    if (enemy.dead || !inWorld) continue;
     drawEnemy(ctx, enemy);
   }
 
@@ -830,6 +919,7 @@ export function renderGame(ctx, game) {
     drawBossWarning(ctx, game.boss);
     drawBoss(ctx, game.boss);
   }
+  ctx.restore();
 
   ctx.fillStyle = palette.hud;
   ctx.font = "20px monospace";
