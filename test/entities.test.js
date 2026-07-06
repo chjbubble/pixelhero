@@ -263,7 +263,7 @@ test("boss still aims at the player when it is on the old charge edge", () => {
 
 test("level has five screens with boss on the final screen", () => {
   const game = createGame();
-  assert.equal(game.level.name, "史莱姆森林");
+  assert.equal(game.level.name, "宁静森林");
   assert.equal(game.level.screens.length, 5);
   assert.equal(game.boss.screen, 4);
 });

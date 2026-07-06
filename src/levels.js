@@ -74,7 +74,7 @@ export function mergeWorldScreens(screens, screenCount = WORLD_SCREENS, screenWi
 
 const CHAPTERS = [
   {
-    name: "史莱姆森林",
+    name: "宁静森林",
     theme: "forest",
     enemyKind: "slime",
     enemySpeed: 70,
