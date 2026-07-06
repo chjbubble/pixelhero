@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SOUND_PATHS, playSoundEvents } from "../src/sound.js";
+import { SOUND_PATHS, playSoundEvents, preloadSounds } from "../src/sound.js";
 
 test("sound paths point at requested wav files", () => {
   assert.equal(SOUND_PATHS.jump, "./assets/brackeys_platformer_assets/sounds/jump.wav");
@@ -25,4 +25,26 @@ test("playSoundEvents plays each queued event once and clears the queue", () => 
 
   assert.deepEqual(played, [SOUND_PATHS.jump, SOUND_PATHS.tap, SOUND_PATHS.hurt]);
   assert.deepEqual(events, []);
+});
+
+test("preloadSounds reuses warmed audio when playing events", () => {
+  const created = [];
+  const played = [];
+  class FakeAudio {
+    constructor(src) {
+      this.src = src;
+      created.push(src);
+    }
+    load() {}
+    play() {
+      played.push(this.src);
+    }
+  }
+  const events = ["jump", "jump"];
+
+  preloadSounds(FakeAudio);
+  playSoundEvents(events, FakeAudio);
+
+  assert.equal(created.filter(src => src === SOUND_PATHS.jump).length, 1);
+  assert.deepEqual(played, [SOUND_PATHS.jump, SOUND_PATHS.jump]);
 });

@@ -5,12 +5,33 @@ export const SOUND_PATHS = {
   tap: "./assets/brackeys_platformer_assets/sounds/tap.wav"
 };
 
+const audioByCtor = new WeakMap();
+
+function getAudio(event, AudioCtor) {
+  let audioByEvent = audioByCtor.get(AudioCtor);
+  if (!audioByEvent) {
+    audioByEvent = new Map();
+    audioByCtor.set(AudioCtor, audioByEvent);
+  }
+  if (!audioByEvent.has(event)) {
+    const audio = new AudioCtor(SOUND_PATHS[event]);
+    audio.loop = false;
+    audio.preload = "auto";
+    audio.load?.();
+    audioByEvent.set(event, audio);
+  }
+  return audioByEvent.get(event);
+}
+
+export function preloadSounds(AudioCtor = Audio) {
+  for (const event of Object.keys(SOUND_PATHS)) getAudio(event, AudioCtor);
+}
+
 export function playSoundEvents(events, AudioCtor = Audio) {
   for (const event of events.splice(0)) {
-    const path = SOUND_PATHS[event];
-    if (!path) continue;
-    const audio = new AudioCtor(path);
-    audio.loop = false;
+    if (!SOUND_PATHS[event]) continue;
+    const audio = getAudio(event, AudioCtor);
+    audio.currentTime = 0;
     audio.play()?.catch?.(() => {});
   }
 }

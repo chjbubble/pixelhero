@@ -4,7 +4,7 @@ import { installKeyboardListeners, installTouchControls, readActions } from "./i
 import { installLevelSelect, showLevelSelect } from "./level-select.js";
 import { getChapterList } from "./levels.js";
 import { renderGame } from "./render.js";
-import { playSoundEvents } from "./sound.js";
+import { playSoundEvents, preloadSounds } from "./sound.js";
 
 const canvas = document.querySelector("#game");
 const restartPanel = document.querySelector("#restart-panel");
@@ -18,6 +18,7 @@ const portraitQuery = window.matchMedia("(orientation: portrait)");
 
 installKeyboardListeners();
 installTouchControls();
+preloadSounds();
 
 let game = createGame();
 let lastTime = performance.now();
