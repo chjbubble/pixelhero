@@ -2,14 +2,24 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
     <title>像素勇者</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="game-shell">
       <canvas id="game" width="960" height="540" aria-label="像素风横版动作游戏"></canvas>
-      <p class="hint">键盘：A/D 移动，W/空格跳跃，J 攻击，R 重开。手柄：摇杆/十字键、A/×、X/B/□/○、Start。</p>
+      <div class="touch-controls" aria-label="手机触摸控制">
+        <div class="touch-stick" data-touch-stick aria-label="移动摇杆">
+          <div class="touch-stick-knob" data-touch-knob></div>
+        </div>
+        <button class="touch-button touch-attack" data-touch-action="attack" aria-label="攻击">攻击</button>
+        <button class="touch-button touch-shoot" data-touch-action="shoot" aria-label="发射">发射</button>
+        <button class="touch-button touch-jump" data-touch-action="jump" aria-label="跳跃">跳跃</button>
+      </div>
+      <div class="restart-panel" id="restart-panel" hidden>
+        <button class="restart-button" data-touch-action="restart">重新开始</button>
+      </div>
     </main>
     <script type="module" src="./src/main.js"></script>
   </body>

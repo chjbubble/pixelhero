@@ -1,4 +1,4 @@
-import { GameState, GROUND_Y, WIDTH } from "./constants.js";
+import { BOSS_CHARGE_MAX_X, BOSS_CHARGE_MIN_X, GameState, GROUND_Y, HEIGHT, WIDTH } from "./constants.js";
 import { createLevel } from "./levels.js";
 import { rectsOverlap } from "./math.js";
 
@@ -11,13 +11,17 @@ const BOSS_IDLE_SECONDS = 3;
 const BOSS_WINDUP_SECONDS = 0.9;
 const BOSS_CHARGE_SECONDS = 0.55;
 const MAX_PLAYER_HP = 5;
+const ARROW_SPEED = 520;
+const BOSS_SHOT_SPEED = 360;
 
-export function createGame() {
-  const level = createLevel();
+export function createGame(chapterIndex = 0) {
+  const level = createLevel(chapterIndex);
   return {
     state: GameState.PLAYING,
+    chapter: chapterIndex,
     level,
     currentScreen: 0,
+    bossDefeated: false,
     checkpoint: null,
     player: {
       x: level.spawn.x,
@@ -30,6 +34,8 @@ export function createGame() {
       grounded: false,
       hp: MAX_PLAYER_HP,
       invuln: 0,
+      armor: 0,
+      arrows: 0,
       attackTimer: 0,
       attackCooldown: 0,
       jumpsUsed: 0,
@@ -42,10 +48,11 @@ export function createGame() {
       y: enemy.y,
       w: 34,
       h: 30,
-      vx: 70,
+      vx: enemy.vx ?? level.enemySpeed,
       hp: 2,
       invuln: 0,
       dead: false,
+      kind: enemy.kind ?? level.enemyKind,
       patrolMin: enemy.patrolMin,
         patrolMax: enemy.patrolMax,
         screen: screenIndex
@@ -58,12 +65,34 @@ export function createGame() {
       h: 58,
       hp: 8,
       invuln: 0,
+      dead: false,
       screen: level.boss.screen,
+      kind: level.boss.kind,
+      attack: level.boss.attack,
+      aggroRange: level.boss.aggroRange ?? Infinity,
+      patrolMin: level.boss.patrolMin ?? BOSS_CHARGE_MIN_X,
+      patrolMax: level.boss.patrolMax ?? BOSS_CHARGE_MAX_X,
       phase: "idle",
-      phaseTimer: BOSS_IDLE_SECONDS,
-      vx: 0,
+      phaseTimer: level.boss.attack === "ranged" ? 0 : BOSS_IDLE_SECONDS,
+      vx: level.boss.attack === "ranged" ? level.boss.patrolSpeed : 0,
       chargeDirection: -1
-    }
+    },
+    crates: level.screens.flatMap((screen, screenIndex) =>
+      screen.crates.map((crate) => ({
+        x: crate.x,
+        y: crate.y,
+        w: 34,
+        h: 34,
+        hp: 1,
+        type: crate.type,
+        style: crate.style ?? level.crateStyle,
+        dead: false,
+        screen: screenIndex
+      }))
+    ),
+    pickups: [],
+    projectiles: [],
+    bossShots: []
   };
 }
 
@@ -71,8 +100,21 @@ function getActiveScreen(game) {
   return game.level.screens[game.currentScreen];
 }
 
+function hasGroundUnderPlayer(screen, player) {
+  return screen.platforms.some(
+    (platform) =>
+      platform.y === GROUND_Y &&
+      player.x + player.w > platform.x &&
+      player.x < platform.x + platform.w
+  );
+}
+
+function getBossChargeDirection(boss, player) {
+  return player.x < boss.x ? -1 : 1;
+}
+
 export function restartGame(previousGame) {
-  const game = createGame();
+  const game = createGame(previousGame.chapter ?? 0);
   const checkpoint = previousGame.checkpoint;
   if (previousGame.state === GameState.LOST && checkpoint) {
     game.checkpoint = { ...checkpoint };
@@ -102,6 +144,12 @@ function damagePlayer(game, sourceX) {
     return;
   }
 
+  if (player.armor > 0) {
+    player.armor -= 1;
+    player.invuln = 0.45;
+    return;
+  }
+
   player.hp -= 1;
   player.invuln = 1;
   player.vx = player.x < sourceX ? -180 : 180;
@@ -120,6 +168,16 @@ function checkScreenTransitions(game) {
     game.currentScreen += 1;
     player.x = SCREEN_LEFT_ENTRY_X;
     player.y = Math.min(player.y, GROUND_Y - player.h);
+    return;
+  }
+
+  if (
+    player.x + player.w >= WIDTH &&
+    game.currentScreen === lastScreen &&
+    game.bossDefeated &&
+    game.level.nextChapter !== null
+  ) {
+    Object.assign(game, createGame(game.level.nextChapter));
     return;
   }
 
@@ -185,11 +243,16 @@ export function updateGame(game, actions, dt) {
     }
   }
 
-  if (player.y + player.h > GROUND_Y) {
+  if (!player.grounded && player.y + player.h > GROUND_Y && hasGroundUnderPlayer(activeScreen, player)) {
     player.y = GROUND_Y - player.h;
     player.vy = 0;
     player.grounded = true;
     player.jumpsUsed = 0;
+  }
+
+  if (player.y > HEIGHT) {
+    game.state = GameState.LOST;
+    return;
   }
 
   for (const checkpoint of activeScreen.checkpoints) {
@@ -210,9 +273,27 @@ export function updateGame(game, actions, dt) {
 
   player.attackTimer = Math.max(0, player.attackTimer - dt);
   player.attackCooldown = Math.max(0, player.attackCooldown - dt);
-  if (actions.attack && player.attackCooldown <= 0) {
-    player.attackTimer = 0.12;
-    player.attackCooldown = 0.32;
+  if ((actions.attack || actions.shoot) && player.attackCooldown <= 0) {
+    let acted = false;
+    if (actions.shoot && player.arrows > 0) {
+      player.arrows -= 1;
+      acted = true;
+      game.projectiles.push({
+        x: player.facing === 1 ? player.x + player.w : player.x - 12,
+        y: player.y + 26,
+        w: 12,
+        h: 6,
+        vx: player.facing * ARROW_SPEED,
+        screen: game.currentScreen,
+        dead: false
+      });
+    } else if (actions.attack) {
+      acted = true;
+      player.attackTimer = 0.12;
+    }
+    if (acted) {
+      player.attackCooldown = 0.32;
+    }
   }
 
   for (const enemy of game.enemies) {
@@ -227,6 +308,13 @@ export function updateGame(game, actions, dt) {
 
   const sword = getSwordHitbox(player);
   if (sword) {
+    for (const crate of game.crates) {
+      if (!crate.dead && crate.screen === game.currentScreen && rectsOverlap(sword, crate)) {
+        crate.dead = true;
+        spawnPickup(game, crate);
+      }
+    }
+
     for (const enemy of game.enemies) {
       if (!enemy.dead && enemy.screen === game.currentScreen && enemy.invuln <= 0 && rectsOverlap(sword, enemy)) {
         enemy.hp -= 1;
@@ -243,7 +331,43 @@ export function updateGame(game, actions, dt) {
       boss.hp -= 1;
       boss.invuln = 0.45;
       if (boss.hp <= 0) {
-        game.state = GameState.WON;
+        advanceAfterBossDefeat(game);
+      }
+    }
+  }
+
+  for (const pickup of game.pickups) {
+    if (!pickup.dead && pickup.screen === game.currentScreen && rectsOverlap(player, pickup)) {
+      applyPickup(player, pickup);
+    }
+  }
+
+  for (const projectile of game.projectiles) {
+    if (projectile.dead || projectile.screen !== game.currentScreen) continue;
+    projectile.x += projectile.vx * dt;
+    if (projectile.x < 0 || projectile.x > WIDTH) {
+      projectile.dead = true;
+      continue;
+    }
+
+    for (const enemy of game.enemies) {
+      if (!enemy.dead && enemy.screen === game.currentScreen && enemy.invuln <= 0 && rectsOverlap(projectile, enemy)) {
+        enemy.hp -= 1;
+        enemy.invuln = 0.28;
+        projectile.dead = true;
+        if (enemy.hp <= 0) {
+          enemy.dead = true;
+        }
+      }
+    }
+
+    const boss = game.boss;
+    if (!projectile.dead && game.currentScreen === boss.screen && boss.invuln <= 0 && rectsOverlap(projectile, boss)) {
+      boss.hp -= 1;
+      boss.invuln = 0.45;
+      projectile.dead = true;
+      if (boss.hp <= 0) {
+        advanceAfterBossDefeat(game);
       }
     }
   }
@@ -254,34 +378,114 @@ export function updateGame(game, actions, dt) {
     }
   }
 
+  for (const shot of game.bossShots) {
+    if (shot.dead || shot.screen !== game.currentScreen) continue;
+    shot.x += shot.vx * dt;
+    if (shot.x < BOSS_CHARGE_MIN_X || shot.x > BOSS_CHARGE_MAX_X) {
+      shot.dead = true;
+      continue;
+    }
+    if (rectsOverlap(player, shot)) {
+      shot.dead = true;
+      damagePlayer(game, shot.x);
+    }
+  }
+
   const boss = game.boss;
-  if (game.currentScreen !== boss.screen) {
+  const playerOnBossScreen = game.currentScreen === boss.screen;
+  if (game.bossDefeated) {
+    return;
+  }
+  if (!playerOnBossScreen && boss.phase === "idle") {
     return;
   }
 
   boss.invuln = Math.max(0, boss.invuln - dt);
   boss.phaseTimer -= dt;
 
-  if (boss.phase === "idle" && boss.phaseTimer <= 0) {
+  if (boss.attack === "ranged") {
+    if (boss.phase === "idle") {
+      boss.x += boss.vx * dt;
+      if (boss.x < boss.patrolMin || boss.x > boss.patrolMax) {
+        boss.vx *= -1;
+        boss.x = Math.max(boss.patrolMin, Math.min(boss.patrolMax, boss.x));
+      }
+      if (boss.phaseTimer <= 0 && Math.abs(player.x - boss.x) <= boss.aggroRange) {
+        boss.phase = "windup";
+        boss.phaseTimer = BOSS_WINDUP_SECONDS;
+        boss.vx = 0;
+        boss.chargeDirection = getBossChargeDirection(boss, player);
+      }
+    } else if (boss.phase === "windup" && boss.phaseTimer <= 0) {
+      boss.phase = "charge";
+      boss.phaseTimer = BOSS_CHARGE_SECONDS;
+      game.bossShots.push({
+        x: boss.chargeDirection === 1 ? boss.x + boss.w : boss.x - 12,
+        y: boss.y + 28,
+        w: 12,
+        h: 8,
+        vx: boss.chargeDirection * BOSS_SHOT_SPEED,
+        screen: boss.screen,
+        dead: false
+      });
+    } else if (boss.phase === "charge" && boss.phaseTimer <= 0) {
+      boss.phase = "idle";
+      boss.phaseTimer = game.level.boss.idleSeconds ?? BOSS_IDLE_SECONDS;
+      boss.vx = boss.chargeDirection * (game.level.boss.patrolSpeed ?? 45);
+    }
+  } else if (boss.phase === "idle" && boss.phaseTimer <= 0) {
     boss.phase = "windup";
     boss.phaseTimer = BOSS_WINDUP_SECONDS;
     boss.vx = 0;
-    boss.chargeDirection = player.x < boss.x ? -1 : 1;
+    boss.chargeDirection = getBossChargeDirection(boss, player);
   } else if (boss.phase === "windup" && boss.phaseTimer <= 0) {
     boss.phase = "charge";
     boss.phaseTimer = BOSS_CHARGE_SECONDS;
     boss.vx = boss.chargeDirection * 340;
   } else if (boss.phase === "charge") {
     boss.x += boss.vx * dt;
-    if (boss.phaseTimer <= 0 || boss.x < 620 || boss.x > 880) {
+    if (boss.phaseTimer <= 0 || boss.x < BOSS_CHARGE_MIN_X || boss.x > BOSS_CHARGE_MAX_X) {
       boss.phase = "idle";
       boss.phaseTimer = BOSS_IDLE_SECONDS;
       boss.vx = 0;
-      boss.x = Math.max(620, Math.min(880, boss.x));
+      boss.x = Math.max(BOSS_CHARGE_MIN_X, Math.min(BOSS_CHARGE_MAX_X, boss.x));
     }
   }
 
-  if (rectsOverlap(player, boss)) {
+  if (playerOnBossScreen && rectsOverlap(player, boss)) {
     damagePlayer(game, boss.x);
   }
+}
+
+function advanceAfterBossDefeat(game) {
+  if (game.level.nextChapter === null) {
+    game.state = GameState.WON;
+    return;
+  }
+
+  game.bossDefeated = true;
+  game.boss.dead = true;
+}
+
+function spawnPickup(game, crate) {
+  game.pickups.push({
+    x: crate.x + 4,
+    y: crate.y + 4,
+    w: 26,
+    h: 26,
+    type: crate.type,
+    dead: false,
+    screen: crate.screen
+  });
+}
+
+function applyPickup(player, pickup) {
+  if (pickup.type === "medkit") {
+    player.hp = Math.min(MAX_PLAYER_HP, player.hp + 2);
+  } else if (pickup.type === "arrows") {
+    player.arrows = 5;
+  } else if (pickup.type === "armor") {
+    player.armor = 4;
+  }
+  pickup.dead = true;
 }

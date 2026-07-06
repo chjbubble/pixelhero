@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { GROUND_Y } from "../src/constants.js";
 import { createGame, restartGame, updateGame } from "../src/entities.js";
 
 test("player falls to the ground and becomes grounded", () => {
@@ -141,7 +142,7 @@ test("sword attack damages the boss", () => {
 });
 
 test("defeating the boss wins the game", () => {
-  const game = createGame();
+  const game = createGame(1);
   game.currentScreen = 4;
   game.boss.hp = 1;
   game.player.x = game.boss.x - 40;
@@ -191,8 +192,40 @@ test("boss waits three seconds before windup and charges after windup", () => {
   assert.equal(game.boss.phase, "charge");
 });
 
+test("boss finishes windup after the player leaves the boss screen", () => {
+  const game = createGame();
+  game.currentScreen = 4;
+  game.player.x = game.boss.x - 120;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 3.01);
+  assert.equal(game.boss.phase, "windup");
+
+  game.currentScreen = 3;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 0.91);
+  assert.equal(game.boss.phase, "charge");
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 0.56);
+  assert.equal(game.boss.phase, "idle");
+});
+
+test("boss still aims at the player when it is on the old charge edge", () => {
+  const game = createGame();
+  game.currentScreen = 4;
+  game.boss.x = 620;
+  game.player.x = 560;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 3.01);
+  assert.equal(game.boss.phase, "windup");
+  assert.equal(game.boss.chargeDirection, -1);
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 0.91);
+  assert.equal(game.boss.phase, "charge");
+  assert.equal(game.boss.vx < 0, true);
+});
+
 test("level has five screens with boss on the final screen", () => {
   const game = createGame();
+  assert.equal(game.level.name, "史莱姆森林");
   assert.equal(game.level.screens.length, 5);
   assert.equal(game.boss.screen, 4);
 });
@@ -270,4 +303,215 @@ test("touching spikes damages the player once during invulnerability", () => {
 
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
   assert.equal(game.player.hp, 4);
+});
+
+test("each screen starts with one crate", () => {
+  const game = createGame();
+  assert.deepEqual(game.level.screens.map((screen) => screen.crates.length), [1, 1, 1, 1, 1]);
+  assert.equal(game.crates.length, 5);
+});
+
+test("crates sit on raised platforms", () => {
+  const game = createGame();
+
+  for (const screen of game.level.screens) {
+    const crate = screen.crates[0];
+    const platform = screen.platforms.find(
+      (candidate) =>
+        candidate.y < GROUND_Y &&
+        crate.y + 34 === candidate.y &&
+        crate.x >= candidate.x &&
+        crate.x + 34 <= candidate.x + candidate.w
+    );
+
+    assert.notEqual(platform, undefined);
+  }
+});
+
+test("breaking a crate drops and applies a medkit", () => {
+  const game = createGame();
+  const crate = game.crates[0];
+  game.player.hp = 3;
+  game.player.x = crate.x - 40;
+  game.player.y = crate.y;
+  game.player.facing = 1;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: true, restart: false }, 1 / 60);
+  assert.equal(crate.dead, true);
+  assert.equal(game.pickups[0].type, "medkit");
+
+  game.player.x = game.pickups[0].x;
+  game.player.y = game.pickups[0].y;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.player.hp, 5);
+  assert.equal(game.pickups[0].dead, true);
+});
+
+test("armor absorbs four hits before health is lost", () => {
+  const game = createGame();
+  const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
+  game.player.x = enemy.x;
+  game.player.y = enemy.y;
+  game.player.armor = 4;
+
+  for (let hit = 3; hit >= 0; hit -= 1) {
+    game.player.invuln = 0;
+    updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+    assert.equal(game.player.armor, hit);
+    assert.equal(game.player.hp, 5);
+  }
+
+  game.player.invuln = 0;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  assert.equal(game.player.hp, 4);
+});
+
+test("arrows have five shots and can damage enemies", () => {
+  const game = createGame();
+  const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
+  game.player.x = enemy.x - 120;
+  game.player.y = enemy.y - 20;
+  game.player.facing = 1;
+  game.player.arrows = 5;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: true, restart: false }, 1 / 60);
+  assert.equal(game.player.arrows, 4);
+  for (let frame = 0; frame < 12; frame += 1) {
+    updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
+  }
+  assert.equal(enemy.hp, 1);
+});
+
+test("attack stays melee when the player has arrows", () => {
+  const game = createGame();
+  const enemy = game.enemies[0];
+  game.currentScreen = enemy.screen;
+  game.player.x = enemy.x - 40;
+  game.player.y = enemy.y - 20;
+  game.player.facing = 1;
+  game.player.arrows = 5;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: true, shoot: false, restart: false }, 1 / 60);
+
+  assert.equal(game.player.arrows, 5);
+  assert.equal(game.projectiles.length, 0);
+  assert.equal(enemy.hp, 1);
+});
+
+test("falling into the fourth screen pit loses immediately", () => {
+  const game = createGame();
+  game.currentScreen = 3;
+  game.player.x = 430;
+  game.player.y = GROUND_Y - game.player.h;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1);
+  assert.equal(game.state, "lost");
+});
+
+test("fourth screen spike sits on the right platform instead of the pit", () => {
+  const game = createGame();
+  const pitStart = 380;
+  const pitEnd = 520;
+  const spike = game.level.screens[3].spikes[0];
+
+  assert.equal(spike.x >= pitEnd || spike.x + spike.w <= pitStart, true);
+});
+
+test("player snaps to ground when opening on solid floor", () => {
+  const game = createGame();
+  game.player.y = GROUND_Y - game.player.h + 8;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+
+  assert.equal(game.state, "playing");
+  assert.equal(game.player.y, GROUND_Y - game.player.h);
+  assert.equal(game.player.grounded, true);
+});
+
+test("second chapter is the corrupted graveyard with zombies", () => {
+  const game = createGame(1);
+
+  assert.equal(game.level.name, "腐败墓园");
+  assert.equal(game.level.theme, "graveyard");
+  assert.equal(game.level.screens.length, 5);
+  assert.equal(game.enemies[0].kind, "zombie");
+  assert.equal(Math.abs(game.enemies[0].vx), 35);
+  assert.equal(game.boss.kind, "zombieBoss");
+  assert.equal(game.boss.attack, "ranged");
+});
+
+test("defeating the first chapter boss unlocks the second chapter exit", () => {
+  const game = createGame();
+  game.currentScreen = 4;
+  game.boss.hp = 1;
+  game.player.x = game.boss.x - 40;
+  game.player.y = game.boss.y + 40;
+  game.player.facing = 1;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: true, shoot: false, restart: false }, 1 / 60);
+
+  assert.equal(game.state, "playing");
+  assert.equal(game.chapter, 0);
+  assert.equal(game.bossDefeated, true);
+  assert.equal(game.boss.dead, true);
+  assert.equal(game.currentScreen, 4);
+});
+
+test("second chapter starts only after defeated boss and right edge exit", () => {
+  const game = createGame();
+  game.currentScreen = 4;
+  game.player.x = 950;
+
+  updateGame(game, { left: false, right: true, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+  assert.equal(game.chapter, 0);
+  assert.equal(game.currentScreen, 4);
+
+  game.bossDefeated = true;
+  game.player.x = 950;
+  updateGame(game, { left: false, right: true, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+
+  assert.equal(game.chapter, 1);
+  assert.equal(game.currentScreen, 0);
+});
+
+test("graveyard boss patrols until the player enters range", () => {
+  const game = createGame(1);
+  game.currentScreen = 4;
+  game.player.x = 40;
+  const startX = game.boss.x;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1);
+
+  assert.equal(game.boss.phase, "idle");
+  assert.notEqual(game.boss.x, startX);
+});
+
+test("graveyard boss finishes ranged windup after player leaves range", () => {
+  const game = createGame(1);
+  game.currentScreen = 4;
+  game.player.x = game.boss.x - 120;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+  assert.equal(game.boss.phase, "windup");
+
+  game.player.x = 40;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 0.91);
+
+  assert.equal(game.boss.phase, "charge");
+  assert.equal(game.bossShots.length, 1);
+});
+
+test("graveyard boss waits twice as long between ranged attacks", () => {
+  const game = createGame(1);
+  game.currentScreen = 4;
+  game.player.x = game.boss.x - 120;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 0.91);
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 0.56);
+
+  assert.equal(game.boss.phase, "idle");
+  assert.equal(game.boss.phaseTimer, 6);
 });
