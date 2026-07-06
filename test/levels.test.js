@@ -16,3 +16,9 @@ test("spikes never overlap generated pit gaps", () => {
     }
   }
 });
+
+test("third chapter boss arena has no fixed spikes", () => {
+  const level = createLevel(2);
+
+  assert.deepEqual(level.bossScreen.spikes, []);
+});

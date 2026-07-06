@@ -4,6 +4,7 @@ import {
   getAssetPaths,
   getBossPose,
   getBossSprite,
+  getBossTrapStyle,
   getBossDrawBox,
   getBossWarningLine,
   getCheckpointSprite,
@@ -183,6 +184,17 @@ test("graveyard boss uses purple slime sheet at current boss size", () => {
     h: 87
   });
   assert.deepEqual(getBossDrawBox({ kind: "forestBoss", x: 700, y: 398, w: 55, h: 58 }), { x: 700, y: 398, w: 55, h: 58 });
+});
+
+test("third chapter boss uses requested character tiles as action frames", () => {
+  assert.deepEqual(getBossSprite({ kind: "spikeBoss", phase: "idle" }), { asset: "ruinsBossA" });
+  assert.deepEqual(getBossSprite({ kind: "spikeBoss", phase: "windup" }), { asset: "ruinsBossB" });
+  assert.deepEqual(getBossSprite({ kind: "spikeBoss", phase: "charge" }), { asset: "ruinsBossC" });
+});
+
+test("boss trap warning and spikes use red hazard colors", () => {
+  assert.deepEqual(getBossTrapStyle(false), { base: "rgb(214 95 95 / 0.45)", spike: "#d65f5f" });
+  assert.deepEqual(getBossTrapStyle(true), { base: "#616b75", spike: "#d65f5f" });
 });
 
 test("boss warning line matches charge distance", () => {

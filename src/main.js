@@ -4,6 +4,7 @@ import { installKeyboardListeners, installTouchControls, readActions } from "./i
 import { installLevelSelect, showLevelSelect } from "./level-select.js";
 import { getChapterList } from "./levels.js";
 import { renderGame } from "./render.js";
+import { playSoundEvents } from "./sound.js";
 
 const canvas = document.querySelector("#game");
 const restartPanel = document.querySelector("#restart-panel");
@@ -43,6 +44,7 @@ function frame(now) {
 
   if (!selectingLevel) {
     updateGame(game, actions, dt);
+    playSoundEvents(game.soundEvents);
   }
   renderGame(ctx, game);
   restartPanel.hidden = selectingLevel || game.state === "playing";

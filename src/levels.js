@@ -383,10 +383,7 @@ const CHAPTERS = [
           { x: 690, y: 356, w: 120, h: 24 }
         ],
         enemies: [],
-        spikes: [
-          { x: 316, y: GROUND_Y - 18, w: 72, h: 18 },
-          { x: 590, y: GROUND_Y - 18, w: 72, h: 18 }
-        ],
+        spikes: [],
         checkpoints: [],
         crates: [{ x: 456, y: 278, type: "arrows" }]
       }

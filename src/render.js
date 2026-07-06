@@ -355,6 +355,16 @@ export function getBossPose(boss) {
 }
 
 export function getBossSprite(boss) {
+  if (boss.kind === "spikeBoss") {
+    return {
+      asset: {
+        idle: "ruinsBossA",
+        windup: "ruinsBossB",
+        charge: "ruinsBossC"
+      }[boss.phase] ?? "ruinsBossA"
+    };
+  }
+
   if (boss.kind === "zombieBoss") {
     return {
       asset: "purpleSlimeBoss",
@@ -392,6 +402,12 @@ export function getCrateSprite() {
 
 function getCrateAsset(crate) {
   return crate.style === "chest" ? "chest" : getCrateSprite().asset;
+}
+
+export function getBossTrapStyle(active) {
+  return active
+    ? { base: "#616b75", spike: "#d65f5f" }
+    : { base: "rgb(214 95 95 / 0.45)", spike: "#d65f5f" };
 }
 
 export function getPitTiles(platforms, width = WIDTH, height = HEIGHT, groundY = GROUND_Y, tileSize = 18) {
@@ -635,9 +651,7 @@ function drawBoss(ctx, boss) {
   const { x, y, w, h } = boss;
   const pose = getBossPose(boss);
   if (boss.kind === "spikeBoss") {
-    const partW = Math.ceil(w / 3);
-    const parts = ["ruinsBossA", "ruinsBossB", "ruinsBossC"];
-    if (parts.every((asset, index) => drawAsset(ctx, asset, x + index * partW, y, partW, h, pose.facing === -1))) {
+    if (drawAsset(ctx, getBossSprite(boss).asset, x, y, w, h, pose.facing === -1)) {
       return;
     }
   }
@@ -751,14 +765,16 @@ function drawCrate(ctx, crate) {
 }
 
 function drawBossTrap(ctx, trap) {
+  const style = getBossTrapStyle(trap.active);
   if (!trap.active) {
-    ctx.fillStyle = "rgb(255 255 255 / 0.45)";
+    ctx.fillStyle = style.base;
     ctx.fillRect(trap.x, trap.y + trap.h - 4, trap.w, 4);
     return;
   }
 
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = style.base;
   ctx.fillRect(trap.x, trap.y + trap.h - 5, trap.w, 5);
+  ctx.fillStyle = style.spike;
   for (let x = trap.x; x < trap.x + trap.w; x += 16) {
     ctx.beginPath();
     ctx.moveTo(x, trap.y + trap.h);

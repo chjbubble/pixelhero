@@ -103,7 +103,8 @@ export function createGame(chapterIndex = 0) {
     pickups: [],
     projectiles: [],
     bossShots: [],
-    bossTraps: []
+    bossTraps: [],
+    soundEvents: []
   };
 }
 
@@ -135,6 +136,10 @@ function hasGroundUnderPlayer(screen, player) {
 
 function getBossChargeDirection(boss, player) {
   return player.x < boss.x ? -1 : 1;
+}
+
+function queueSound(game, sound) {
+  game.soundEvents.push(sound);
 }
 
 function getTrapForPlayer(player) {
@@ -184,10 +189,12 @@ function damagePlayer(game, sourceX) {
   if (player.armor > 0) {
     player.armor -= 1;
     player.invuln = 0.45;
+    queueSound(game, "hurt");
     return;
   }
 
   player.hp -= 1;
+  queueSound(game, "hurt");
   player.invuln = 1;
   player.vx = player.x < sourceX ? -180 : 180;
   player.vy = -260;
@@ -259,6 +266,7 @@ export function updateGame(game, actions, dt) {
     player.vy = -JUMP_SPEED;
     player.grounded = false;
     player.jumpsUsed += 1;
+    queueSound(game, "jump");
   }
 
   const previousBottom = player.y + player.h;
@@ -316,11 +324,13 @@ export function updateGame(game, actions, dt) {
 
   player.attackTimer = Math.max(0, player.attackTimer - dt);
   player.attackCooldown = Math.max(0, player.attackCooldown - dt);
+  let meleeAttackStarted = false;
   if ((actions.attack || actions.shoot) && player.attackCooldown <= 0) {
     let acted = false;
     if (actions.shoot && player.arrows > 0) {
       player.arrows -= 1;
       acted = true;
+      queueSound(game, "tap");
       game.projectiles.push({
         x: player.facing === 1 ? player.x + player.w : player.x - 12,
         y: player.y + 26,
@@ -332,6 +342,7 @@ export function updateGame(game, actions, dt) {
       });
     } else if (actions.attack) {
       acted = true;
+      meleeAttackStarted = true;
       player.attackTimer = 0.12;
     }
     if (acted) {
@@ -350,10 +361,12 @@ export function updateGame(game, actions, dt) {
   }
 
   const sword = getSwordHitbox(player);
+  let meleeHit = false;
   if (sword) {
     for (const crate of game.crates) {
       if (!crate.dead && isInWorldMap(game) && rectsOverlap(sword, crate)) {
         crate.dead = true;
+        meleeHit = true;
         spawnPickup(game, crate);
       }
     }
@@ -363,6 +376,7 @@ export function updateGame(game, actions, dt) {
         enemy.hp -= 1;
         enemy.invuln = 0.28;
         enemy.x += player.facing * 14;
+        meleeHit = true;
         if (enemy.hp <= 0) {
           enemy.dead = true;
         }
@@ -373,10 +387,14 @@ export function updateGame(game, actions, dt) {
     if (game.currentScreen === boss.screen && boss.invuln <= 0 && rectsOverlap(sword, boss)) {
       boss.hp -= 1;
       boss.invuln = 0.45;
+      meleeHit = true;
       if (boss.hp <= 0) {
         advanceAfterBossDefeat(game);
       }
     }
+  }
+  if (meleeAttackStarted) {
+    queueSound(game, meleeHit ? "hurt" : "tap");
   }
 
   for (const pickup of game.pickups) {
@@ -399,9 +417,11 @@ export function updateGame(game, actions, dt) {
         enemy.hp -= 1;
         enemy.invuln = 0.28;
         projectile.dead = true;
+        queueSound(game, "explosion");
         if (enemy.hp <= 0) {
           enemy.dead = true;
         }
+        break;
       }
     }
 
@@ -410,6 +430,7 @@ export function updateGame(game, actions, dt) {
       boss.hp -= 1;
       boss.invuln = 0.45;
       projectile.dead = true;
+      queueSound(game, "explosion");
       if (boss.hp <= 0) {
         advanceAfterBossDefeat(game);
       }

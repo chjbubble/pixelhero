@@ -26,6 +26,16 @@ test("grounded player jumps when jump action is pressed", () => {
   assert.equal(game.player.vy < 0, true);
 });
 
+test("successful jump queues jump sound once", () => {
+  const game = createGame();
+  game.player.grounded = true;
+
+  updateGame(game, { left: false, right: false, jump: true, attack: false, shoot: false, restart: false }, 1 / 60);
+  updateGame(game, { left: false, right: false, jump: true, attack: false, shoot: false, restart: false }, 1 / 60);
+
+  assert.deepEqual(game.soundEvents, ["jump"]);
+});
+
 test("airborne player can jump one more time", () => {
   const game = createGame();
   game.player.grounded = true;
@@ -94,6 +104,25 @@ test("player attack damages an enemy in front of the player", () => {
   assert.equal(enemy.hp, 1);
 });
 
+test("melee hit queues hurt sound and melee miss queues tap sound", () => {
+  const hitGame = createGame();
+  const enemy = hitGame.enemies[0];
+  hitGame.player.x = enemy.x - 40;
+  hitGame.player.y = enemy.y - 20;
+  hitGame.player.facing = 1;
+
+  updateGame(hitGame, { left: false, right: false, jump: false, attack: true, shoot: false, restart: false }, 1 / 60);
+  assert.equal(hitGame.soundEvents.at(-1), "hurt");
+
+  const missGame = createGame();
+  missGame.player.x = 40;
+  missGame.player.y = GROUND_Y - missGame.player.h;
+  missGame.player.facing = -1;
+
+  updateGame(missGame, { left: false, right: false, jump: false, attack: true, shoot: false, restart: false }, 1 / 60);
+  assert.equal(missGame.soundEvents.at(-1), "tap");
+});
+
 test("enemy is marked dead after two sword hits", () => {
   const game = createGame();
   const enemy = game.enemies[0];
@@ -116,6 +145,7 @@ test("touching an enemy damages the player once", () => {
   game.player.y = enemy.y;
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
   assert.equal(game.player.hp, 4);
+  assert.equal(game.soundEvents.at(-1), "hurt");
   updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
   assert.equal(game.player.hp, 4);
 });
@@ -381,10 +411,12 @@ test("arrows have five shots and can damage enemies", () => {
 
   updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: true, restart: false }, 1 / 60);
   assert.equal(game.player.arrows, 4);
+  assert.equal(game.soundEvents.at(-1), "tap");
   for (let frame = 0; frame < 12; frame += 1) {
     updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
   }
   assert.equal(enemy.hp, 1);
+  assert.equal(game.soundEvents.at(-1), "explosion");
 });
 
 test("attack stays melee when the player has arrows", () => {
