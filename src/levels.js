@@ -388,6 +388,94 @@ const CHAPTERS = [
         crates: [{ x: 456, y: 278, type: "arrows" }]
       }
     ]
+  },
+  {
+    name: "\u5916\u661f\u98de\u8239",
+    theme: "spaceship",
+    enemyKind: "spaceAlien",
+    enemySpeed: 52,
+    crateStyle: "crate",
+    spawn: { x: 72, y: GROUND_Y - 56 },
+    boss: { x: 752, y: GROUND_Y - 96, w: 96, h: 96, screen: 4, kind: "spaceBoss", attack: "minions", patrolMin: 600, patrolMax: 820, patrolSpeed: 52 },
+    screens: [
+      {
+        platforms: [
+          { x: 0, y: GROUND_Y, w: 960, h: 84 },
+          { x: 164, y: 356, w: 160, h: 24 },
+          { x: 498, y: 312, w: 192, h: 24 }
+        ],
+        enemies: [
+          { x: 270, y: GROUND_Y - 30, patrolMin: 160, patrolMax: 380 },
+          { x: 570, y: 282, patrolMin: 520, patrolMax: 650 }
+        ],
+        spikes: [],
+        checkpoints: [],
+        crates: [{ x: 220, y: 322, type: "medkit" }]
+      },
+      {
+        platforms: [
+          { x: 0, y: GROUND_Y, w: 960, h: 84 },
+          { x: 116, y: 382, w: 144, h: 24 },
+          { x: 382, y: 328, w: 176, h: 24 },
+          { x: 690, y: 274, w: 152, h: 24 }
+        ],
+        enemies: [
+          { x: 180, y: GROUND_Y - 30, patrolMin: 90, patrolMax: 300 },
+          { x: 440, y: 298, patrolMin: 400, patrolMax: 520 },
+          { x: 760, y: GROUND_Y - 30, patrolMin: 650, patrolMax: 860 }
+        ],
+        spikes: [],
+        checkpoints: [
+          { x: 78, y: GROUND_Y - 42, w: 22, h: 42, spawnX: 90, spawnY: GROUND_Y - 56 }
+        ],
+        crates: [{ x: 744, y: 240, type: "arrows" }]
+      },
+      {
+        platforms: [
+          { x: 0, y: GROUND_Y, w: 960, h: 84 },
+          { x: 164, y: 350, w: 176, h: 24 },
+          { x: 462, y: 300, w: 160, h: 24 },
+          { x: 748, y: 360, w: 132, h: 24 }
+        ],
+        enemies: [
+          { x: 110, y: GROUND_Y - 30, patrolMin: 50, patrolMax: 230 },
+          { x: 518, y: 270, patrolMin: 478, patrolMax: 590 },
+          { x: 790, y: GROUND_Y - 30, patrolMin: 700, patrolMax: 900 }
+        ],
+        spikes: [],
+        checkpoints: [],
+        crates: [{ x: 516, y: 266, type: "armor" }]
+      },
+      {
+        platforms: [
+          { x: 0, y: GROUND_Y, w: 960, h: 84 },
+          { x: 208, y: 366, w: 160, h: 24 },
+          { x: 504, y: 318, w: 176, h: 24 },
+          { x: 762, y: 272, w: 128, h: 24 }
+        ],
+        enemies: [
+          { x: 170, y: GROUND_Y - 30, patrolMin: 80, patrolMax: 290 },
+          { x: 580, y: 288, patrolMin: 530, patrolMax: 650 },
+          { x: 820, y: GROUND_Y - 30, patrolMin: 720, patrolMax: 910 }
+        ],
+        spikes: [],
+        checkpoints: [
+          { x: 108, y: GROUND_Y - 42, w: 22, h: 42, spawnX: 120, spawnY: GROUND_Y - 56 }
+        ],
+        crates: [{ x: 806, y: 238, type: "medkit" }]
+      },
+      {
+        platforms: [
+          { x: 0, y: GROUND_Y, w: 960, h: 84 },
+          { x: 164, y: 360, w: 160, h: 24 },
+          { x: 462, y: 316, w: 176, h: 24 }
+        ],
+        enemies: [],
+        spikes: [],
+        checkpoints: [],
+        crates: [{ x: 520, y: 282, type: "arrows" }]
+      }
+    ]
   }
 ];
 

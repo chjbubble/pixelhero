@@ -26,6 +26,24 @@ const BOSS_SHOT_SPEED = 360;
 const BOSS_TRAP_W = 72;
 const BOSS_TRAP_H = 18;
 
+function spawnBossMinions(game) {
+  for (const platform of game.level.bossScreen.platforms.slice(0, 3)) {
+    game.enemies.push({
+      x: platform.x + (platform.w - 32) / 2,
+      y: platform.y - 30,
+      w: 32,
+      h: 30,
+      vx: 0,
+      hp: 1,
+      invuln: 0,
+      dead: false,
+      kind: "mushMinion",
+      stationary: true,
+      arena: "boss"
+    });
+  }
+}
+
 export function createGame(chapterIndex = 0) {
   const level = createLevel(chapterIndex);
   return {
@@ -72,8 +90,8 @@ export function createGame(chapterIndex = 0) {
     boss: {
       x: level.boss.x,
       y: level.boss.y,
-      w: 55,
-      h: 58,
+      w: level.boss.w ?? 55,
+      h: level.boss.h ?? 58,
       hp: 8,
       invuln: 0,
       dead: false,
@@ -85,8 +103,9 @@ export function createGame(chapterIndex = 0) {
       patrolMax: level.boss.patrolMax ?? BOSS_CHARGE_MAX_X,
       phase: "idle",
       phaseTimer: level.boss.attack === "ranged" ? 0 : level.boss.idleSeconds ?? BOSS_IDLE_SECONDS,
-      vx: level.boss.attack === "ranged" ? level.boss.patrolSpeed : 0,
+      vx: level.boss.patrolSpeed ?? 0,
       chargeDirection: -1,
+      hidden: false,
       trap: null
     },
     crates: level.worldMap.crates.map((crate) => ({
@@ -351,8 +370,9 @@ export function updateGame(game, actions, dt) {
   }
 
   for (const enemy of game.enemies) {
-    if (enemy.dead || !isInWorldMap(game)) continue;
+    if (enemy.dead || enemy.arena !== (isInWorldMap(game) ? "world" : "boss")) continue;
     enemy.invuln = Math.max(0, enemy.invuln - dt);
+    if (enemy.stationary) continue;
     enemy.x += enemy.vx * dt;
     if (enemy.x < enemy.patrolMin || enemy.x > enemy.patrolMax) {
       enemy.vx *= -1;
@@ -372,10 +392,10 @@ export function updateGame(game, actions, dt) {
     }
 
     for (const enemy of game.enemies) {
-      if (!enemy.dead && isInWorldMap(game) && enemy.invuln <= 0 && rectsOverlap(sword, enemy)) {
+      if (!enemy.dead && enemy.arena === (isInWorldMap(game) ? "world" : "boss") && enemy.invuln <= 0 && rectsOverlap(sword, enemy)) {
         enemy.hp -= 1;
         enemy.invuln = 0.28;
-        enemy.x += player.facing * 14;
+        if (!enemy.stationary) enemy.x += player.facing * 14;
         meleeHit = true;
         if (enemy.hp <= 0) {
           enemy.dead = true;
@@ -384,7 +404,7 @@ export function updateGame(game, actions, dt) {
     }
 
     const boss = game.boss;
-    if (game.currentScreen === boss.screen && boss.invuln <= 0 && rectsOverlap(sword, boss)) {
+    if (game.currentScreen === boss.screen && !boss.hidden && boss.attack !== "minions" && boss.invuln <= 0 && rectsOverlap(sword, boss)) {
       boss.hp -= 1;
       boss.invuln = 0.45;
       meleeHit = true;
@@ -413,7 +433,7 @@ export function updateGame(game, actions, dt) {
     }
 
     for (const enemy of game.enemies) {
-      if (!enemy.dead && isInWorldMap(game) && enemy.invuln <= 0 && rectsOverlap(projectile, enemy)) {
+      if (!enemy.dead && enemy.arena === projectile.arena && enemy.invuln <= 0 && rectsOverlap(projectile, enemy)) {
         enemy.hp -= 1;
         enemy.invuln = 0.28;
         projectile.dead = true;
@@ -426,7 +446,7 @@ export function updateGame(game, actions, dt) {
     }
 
     const boss = game.boss;
-    if (!projectile.dead && game.currentScreen === boss.screen && boss.invuln <= 0 && rectsOverlap(projectile, boss)) {
+    if (!projectile.dead && game.currentScreen === boss.screen && !boss.hidden && boss.attack !== "minions" && boss.invuln <= 0 && rectsOverlap(projectile, boss)) {
       boss.hp -= 1;
       boss.invuln = 0.45;
       projectile.dead = true;
@@ -438,7 +458,7 @@ export function updateGame(game, actions, dt) {
   }
 
   for (const enemy of game.enemies) {
-    if (!enemy.dead && isInWorldMap(game) && rectsOverlap(player, enemy)) {
+    if (!enemy.dead && enemy.arena === (isInWorldMap(game) ? "world" : "boss") && rectsOverlap(player, enemy)) {
       damagePlayer(game, enemy.x);
     }
   }
@@ -479,7 +499,37 @@ export function updateGame(game, actions, dt) {
   boss.invuln = Math.max(0, boss.invuln - dt);
   boss.phaseTimer -= dt;
 
-  if (boss.attack === "spikeTrap") {
+  if (boss.attack === "minions") {
+    if (boss.hidden) {
+      if (!game.enemies.some((enemy) => enemy.arena === "boss" && !enemy.dead)) {
+        boss.hidden = false;
+        boss.hp -= 2;
+        if (boss.hp <= 0) {
+          advanceAfterBossDefeat(game);
+        } else {
+          boss.phaseTimer = game.level.boss.idleSeconds ?? BOSS_IDLE_SECONDS;
+        }
+      }
+    } else if (boss.phaseTimer <= 0) {
+      boss.hidden = true;
+      spawnBossMinions(game);
+    } else {
+      boss.x += boss.vx * dt;
+      if (boss.x < boss.patrolMin || boss.x > boss.patrolMax) {
+        boss.vx *= -1;
+        boss.x = Math.max(boss.patrolMin, Math.min(boss.patrolMax, boss.x));
+      }
+      boss.chargeDirection = boss.vx < 0 ? -1 : 1;
+    }
+  } else if (boss.attack === "none") {
+    boss.x += boss.vx * dt;
+    if (boss.x < boss.patrolMin || boss.x > boss.patrolMax) {
+      boss.vx *= -1;
+      boss.x = Math.max(boss.patrolMin, Math.min(boss.patrolMax, boss.x));
+    }
+    boss.chargeDirection = boss.vx < 0 ? -1 : 1;
+    boss.phase = "idle";
+  } else if (boss.attack === "spikeTrap") {
     if (boss.phase === "idle" && boss.phaseTimer <= 0) {
       boss.phase = "windup";
       boss.phaseTimer = game.level.boss.trapWindupSeconds ?? BOSS_WINDUP_SECONDS;
@@ -545,7 +595,7 @@ export function updateGame(game, actions, dt) {
     }
   }
 
-  if (playerOnBossScreen && rectsOverlap(player, boss)) {
+  if (playerOnBossScreen && !boss.hidden && rectsOverlap(player, boss)) {
     damagePlayer(game, boss.x);
   }
 }

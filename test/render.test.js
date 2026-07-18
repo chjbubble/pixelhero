@@ -41,6 +41,11 @@ test("Kenney asset paths are stable browser-relative files", () => {
   assert.equal(getAssetPaths().armor, "./assets/kenney/Tiles/tile_0067.png");
   assert.equal(getAssetPaths().pitTop, "./assets/kenney_pixel-platformer/Tiles/tile_0033.png");
   assert.equal(getAssetPaths().pitFill, "./assets/kenney_pixel-platformer/Tiles/tile_0073.png");
+  assert.equal(getAssetPaths().sciFiTiles, "./assets/scifi_asset_pack/tileset.png");
+  assert.equal(getAssetPaths().spaceAlien, "./assets/scifi_asset_pack/idle.png");
+  assert.equal(getAssetPaths().spaceBoss, "./assets/scifi_asset_pack/we_r_mush_anim.png");
+  assert.equal(getAssetPaths().mushMinion, "./assets/scifi_asset_pack/mush_anim.png");
+  assert.equal(getAssetPaths().spaceBackground, "./assets/scifi_asset_pack/space_background.png");
 });
 
 test("ruins use requested top ground and background tiles", () => {
@@ -62,6 +67,7 @@ test("ground tiles use unscaled atlas cells without bordered source tiles", () =
   assert.deepEqual(getTerrainTile("forest", 0), { asset: "terrain", sx: 38, sy: 19, sw: 18, sh: 18 });
   assert.deepEqual(getTerrainTile("graveyard", 0), { asset: "terrain", sx: 38, sy: 57, sw: 18, sh: 18 });
   assert.deepEqual(getTerrainTile("forest", 1), { asset: "terrain", sx: 38, sy: 114, sw: 18, sh: 18 });
+  assert.deepEqual(getTerrainTile("spaceship", 0), { asset: "sciFiTiles", sx: 160, sy: 32, sw: 96, sh: 64 });
 });
 
 test("background tiles render double size without repeating lower rows", () => {
@@ -213,6 +219,16 @@ test("third chapter boss uses requested character tiles as action frames", () =>
   assert.deepEqual(getBossSprite({ kind: "spikeBoss", phase: "idle" }), { asset: "ruinsBossA" });
   assert.deepEqual(getBossSprite({ kind: "spikeBoss", phase: "windup" }), { asset: "ruinsBossB" });
   assert.deepEqual(getBossSprite({ kind: "spikeBoss", phase: "charge" }), { asset: "ruinsBossC" });
+});
+
+test("spaceship boss animation advances with its movement", () => {
+  assert.deepEqual(getBossSprite({ kind: "spaceBoss", x: 36 }), {
+    asset: "spaceBoss",
+    frame: 4,
+    cols: 7,
+    frameW: 35,
+    frameH: 32
+  });
 });
 
 test("boss trap warning and spikes use red hazard colors", () => {

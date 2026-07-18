@@ -30,7 +30,12 @@ const ASSET_PATHS = {
   ruinsBgGroundB: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0009.png",
   ruinsBgGroundC: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0010.png",
   ruinsBgGroundD: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0011.png",
-  ruinsBgFill: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0000.png"
+  ruinsBgFill: "./assets/kenney_pixel-platformer/Tiles/Backgrounds/tile_0000.png",
+  sciFiTiles: "./assets/scifi_asset_pack/tileset.png",
+  spaceAlien: "./assets/scifi_asset_pack/idle.png",
+  spaceBoss: "./assets/scifi_asset_pack/we_r_mush_anim.png",
+  mushMinion: "./assets/scifi_asset_pack/mush_anim.png",
+  spaceBackground: "./assets/scifi_asset_pack/space_background.png"
 };
 
 const assets = loadAssets(ASSET_PATHS);
@@ -141,6 +146,9 @@ function packedTileSource(index, cols) {
 }
 
 export function getTerrainTile(theme, layer) {
+  if (theme === "spaceship") {
+    return { asset: "sciFiTiles", sx: 160, sy: 32, sw: 96, sh: 64 };
+  }
   if (theme === "ruins" && layer === 0) {
     return { asset: "ruinsGroundTop" };
   }
@@ -149,6 +157,15 @@ export function getTerrainTile(theme, layer) {
 }
 
 function drawGround(ctx, platform, theme) {
+  if (theme === "spaceship") {
+    const tile = getTerrainTile(theme, 0);
+    for (let x = platform.x; x < platform.x + platform.w; x += 96) {
+      if (!drawAssetRegion(ctx, tile, x, platform.y, Math.min(96, platform.x + platform.w - x), platform.h)) {
+        return false;
+      }
+    }
+    return true;
+  }
   for (const tile of getGroundTiles(platform)) {
     if (!drawAssetRegion(ctx, getTerrainTile(theme, tile.layer), tile.x, tile.y, tile.w, tile.h)) {
       return false;
@@ -225,8 +242,11 @@ export function getBackgroundTiles(theme, width = WIDTH, height = HEIGHT, ground
   return tiles;
 }
 
-function drawBackground(ctx, theme, width = WIDTH) {
+function drawBackground(ctx, theme, width = WIDTH, cameraX = 0) {
   ctx.imageSmoothingEnabled = false;
+  if (theme === "spaceship") {
+    return drawAssetRegion(ctx, { asset: "spaceBackground", sx: 0, sy: 0, sw: 320, sh: 240 }, cameraX, 0, WIDTH, 720);
+  }
   for (const tile of getBackgroundTiles(theme, width)) {
     if (!drawAssetRegion(ctx, tile)) {
       return false;
@@ -355,6 +375,9 @@ export function getBossPose(boss) {
 }
 
 export function getBossSprite(boss) {
+  if (boss.kind === "spaceBoss") {
+    return { asset: "spaceBoss", frame: Math.floor(boss.x / 36) % 2 ? 4 : 0, cols: 7, frameW: 35, frameH: 32 };
+  }
   if (boss.kind === "spikeBoss") {
     return {
       asset: {
@@ -615,6 +638,19 @@ function drawZombie(ctx, enemy) {
 }
 
 function drawEnemy(ctx, enemy) {
+  if (enemy.kind === "mushMinion") {
+    if (drawSpriteFrame(ctx, { asset: "mushMinion", frame: 0, cols: 5, frameW: 32, frameH: 32 }, enemy.x, enemy.y - 2, enemy.w, enemy.h + 2, false, enemy.invuln > 0)) {
+      return;
+    }
+  }
+  if (enemy.kind === "spaceAlien") {
+    const scale = 1.5;
+    const w = enemy.w * scale;
+    const h = enemy.h * scale;
+    if (drawSpriteFrame(ctx, { asset: "spaceAlien", frame: Math.floor(enemy.x / 12) % 8, cols: 8, frameW: 32, frameH: 32 }, enemy.x - (w - enemy.w) / 2, enemy.y + enemy.h - h, w, h, enemy.vx < 0, enemy.invuln > 0)) {
+      return;
+    }
+  }
   if (enemy.kind === "ruinsBeast") {
     const pose = getEnemyPose(enemy);
     const asset = Math.floor(enemy.x / 12) % 2 === 0 ? "ruinsEnemyA" : "ruinsEnemyB";
@@ -663,6 +699,9 @@ function drawEnemy(ctx, enemy) {
 function drawBoss(ctx, boss) {
   const { x, y, w, h } = boss;
   const pose = getBossPose(boss);
+  if (boss.kind === "spaceBoss" && drawSpriteFrame(ctx, getBossSprite(boss), x, y, w, h, pose.facing === -1, false)) {
+    return;
+  }
   if (boss.kind === "spikeBoss") {
     if (drawAsset(ctx, getBossSprite(boss).asset, x, y, w, h, pose.facing === -1)) {
       return;
@@ -890,7 +929,7 @@ export function renderGame(ctx, game, options = {}) {
   ctx.save();
   ctx.scale(view.scale, view.scale);
   ctx.translate(-view.x, -view.y);
-  drawBackground(ctx, game.level.theme, mapWidth);
+  drawBackground(ctx, game.level.theme, mapWidth, cameraX);
   drawPits(ctx, screen.platforms, mapWidth);
 
   ctx.fillStyle = palette.platform;
@@ -947,11 +986,11 @@ export function renderGame(ctx, game, options = {}) {
   drawPlayer(ctx, game.player);
 
   for (const enemy of game.enemies) {
-    if (enemy.dead || !inWorld) continue;
+    if (enemy.dead || enemy.arena !== (inWorld ? "world" : "boss")) continue;
     drawEnemy(ctx, enemy);
   }
 
-  if (!game.boss.dead && game.currentScreen === game.boss.screen) {
+  if (!game.boss.dead && !game.boss.hidden && game.currentScreen === game.boss.screen) {
     drawBossWarning(ctx, game.boss);
     drawBoss(ctx, game.boss);
   }

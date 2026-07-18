@@ -171,14 +171,13 @@ test("sword attack damages the boss", () => {
   assert.equal(game.boss.hp, 7);
 });
 
-test("defeating the boss wins the game", () => {
-  const game = createGame(2);
+test("defeating the final boss wins the game", () => {
+  const game = createGame(3);
   game.currentScreen = 4;
-  game.boss.hp = 1;
-  game.player.x = game.boss.x - 40;
-  game.player.y = game.boss.y + 40;
-  game.player.facing = 1;
-  updateGame(game, { left: false, right: false, jump: false, attack: true, restart: false }, 1 / 60);
+  game.boss.hp = 2;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 3.01);
+  game.enemies.filter((enemy) => enemy.arena === "boss").forEach((enemy) => { enemy.dead = true; });
+  updateGame(game, { left: false, right: false, jump: false, attack: false, restart: false }, 1 / 60);
   assert.equal(game.state, "won");
 });
 
@@ -558,7 +557,24 @@ test("third chapter uses ruins enemies and spike trap boss", () => {
   assert.equal(game.enemies[0].kind, "ruinsBeast");
   assert.equal(game.boss.kind, "spikeBoss");
   assert.equal(game.boss.attack, "spikeTrap");
-  assert.equal(game.level.nextChapter, null);
+  assert.equal(game.level.nextChapter, 3);
+});
+
+test("spaceship boss summons three stationary minions after three seconds", () => {
+  const game = createGame(3);
+  game.currentScreen = BOSS_SCREEN;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 3.01);
+
+  const minions = game.enemies.filter((enemy) => enemy.arena === "boss");
+  assert.equal(game.boss.hidden, true);
+  assert.equal(minions.length, 3);
+  assert.ok(minions.every((enemy) => enemy.kind === "mushMinion" && enemy.hp === 1 && enemy.stationary));
+
+  minions.forEach((enemy) => { enemy.dead = true; });
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1 / 60);
+  assert.equal(game.boss.hidden, false);
+  assert.equal(game.boss.hp, 6);
 });
 
 test("second chapter boss unlocks the third chapter exit", () => {
