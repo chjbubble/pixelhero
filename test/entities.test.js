@@ -267,6 +267,34 @@ test("level has five screens with boss on the final screen", () => {
   assert.equal(game.boss.screen, 4);
 });
 
+test("third chapter boss defeat ascends the player before starting chapter four", () => {
+  const game = createGame(2);
+  game.currentScreen = BOSS_SCREEN;
+  game.boss.hp = 1;
+  game.player.x = game.boss.x - 40;
+  game.player.y = game.boss.y + 40;
+  game.player.facing = 1;
+
+  updateGame(game, { left: false, right: false, jump: false, attack: true, shoot: false, restart: false }, 1 / 60);
+  assert.equal(game.transition?.kind, "ascend");
+  assert.equal(game.chapter, 2);
+
+  const startX = game.player.x;
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1);
+  assert.equal(game.player.x, startX);
+
+  updateGame(game, { left: false, right: false, jump: false, attack: false, shoot: false, restart: false }, 1);
+  assert.equal(game.chapter, 3);
+  assert.equal(game.transition, null);
+});
+
+test("selecting chapter four starts without the ascension transition", () => {
+  const game = createGame(3);
+
+  assert.equal(game.chapter, 3);
+  assert.equal(game.transition, null);
+});
+
 test("player can traverse the merged world map and enter the boss arena", () => {
   const game = createGame();
   game.player.x = WORLD_WIDTH - 4;

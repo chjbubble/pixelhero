@@ -603,6 +603,16 @@ function drawPlayer(ctx, player) {
   }
 }
 
+function drawAscensionBeam(ctx, player) {
+  const center = player.x + player.w / 2;
+  ctx.save();
+  ctx.fillStyle = "rgb(216 248 255 / 0.18)";
+  ctx.fillRect(center - 68, 0, 136, HEIGHT);
+  ctx.fillStyle = "rgb(255 255 255 / 0.22)";
+  ctx.fillRect(center - 30, 0, 60, HEIGHT);
+  ctx.restore();
+}
+
 function drawZombie(ctx, enemy) {
   const { x, y, w, h } = enemy;
   const pose = getEnemyPose(enemy);
@@ -983,6 +993,9 @@ export function renderGame(ctx, game, options = {}) {
     }
   }
 
+  if (game.transition?.kind === "ascend") {
+    drawAscensionBeam(ctx, game.player);
+  }
   drawPlayer(ctx, game.player);
 
   for (const enemy of game.enemies) {

@@ -25,6 +25,7 @@ const ARROW_SPEED = 520;
 const BOSS_SHOT_SPEED = 360;
 const BOSS_TRAP_W = 72;
 const BOSS_TRAP_H = 18;
+const ASCENT_SPEED = 300;
 
 function spawnBossMinions(game) {
   for (const platform of game.level.bossScreen.platforms.slice(0, 3)) {
@@ -53,6 +54,7 @@ export function createGame(chapterIndex = 0) {
     currentScreen: 0,
     cameraX: getCameraX(level.spawn.x, 32, level.worldMap.width, WIDTH),
     bossDefeated: false,
+    transition: null,
     checkpoint: null,
     player: {
       x: level.spawn.x,
@@ -266,6 +268,13 @@ export function updateGame(game, actions, dt) {
   }
 
   const player = game.player;
+  if (game.transition?.kind === "ascend") {
+    player.y -= ASCENT_SPEED * dt;
+    if (player.y + player.h < 0) {
+      Object.assign(game, createGame(game.level.nextChapter));
+    }
+    return;
+  }
   player.invuln = Math.max(0, player.invuln - dt);
 
   player.vx = 0;
@@ -608,6 +617,9 @@ function advanceAfterBossDefeat(game) {
 
   game.bossDefeated = true;
   game.boss.dead = true;
+  if (game.chapter === 2) {
+    game.transition = { kind: "ascend" };
+  }
 }
 
 function spawnPickup(game, crate) {
